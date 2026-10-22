@@ -121,7 +121,7 @@ Editable prices and assumptions update the plan live. For example, a user can ra
 4. Add one live price or capacity control that visibly changes the recommendation, contribution range, and explanation.
 5. Polish the result screen and demo with simulated data. Keep accounts, databases, persistent records, and model training out of the two-day build.
 
-## Suggested technical stack
+## Technical stack
 
 - **Next.js App Router + TypeScript:** UI plus a server-side Route Handler for the optimizer. [Next.js Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers)
 - **Session-only scenario state:** no database is needed for this prototype because offers and results are not saved after the session.
