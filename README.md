@@ -14,7 +14,7 @@ A 2025 study of the Sorsogon pili value chain reports that supply exceeds the da
 
 ## Project overview
 
-BatchPilot is designed around one buying decision at a time. The user selects one pili intake form and processing route, then enters one buyer order, three offers of that same intake form, the available capacity for a bottleneck such as drying, and low, typical, and high yield assumptions. The simulator compares all feasible offer combinations, displays contribution ranges and limiting constraints, calculates a walk-away price, and lets the user change an assumption to see the recommendation update immediately.
+BatchPilot is designed around one buying decision at a time. The user selects one pili input form and output route, then enters one buyer order, three offers of that same input form, the available capacity for a bottleneck such as drying, and low, typical, and high conversion assumptions. The server-side optimizer compares all feasible offer combinations, displays output and contribution ranges with limiting constraints, calculates a walk-away price, and updates the recommendation when an assumption changes.
 
 The central question is: **“Given these offers and my capacity, which combination should I accept, and what is the highest price I can afford to pay?”** BatchPilot explains its recommendation; the processor makes the final decision. The prototype is a session-based simulator, not a records-management app: it does not require an account or save scenario data after the session.
 
@@ -24,18 +24,19 @@ The central question is: **“Given these offers and my capacity, which combinat
 - **Other possible suppliers:** farmers, traders, or cooperatives offering pili to a processor.
 - **Not the primary user:** a retail shop selling packaged pili snacks. That business has different inventory and sales decisions.
 
-Each record identifies the pili form, such as fresh fruit, shelled pili, or kernels. These forms must not share an assumed yield rate.
+The conversion assumption is specific to the selected input form and processing route—for example, fresh fruit with pulp → dried nut in shell → kernel; dried nut in shell → kernel; or kernel → packed kernel product. These routes do not share a yield rate. The demo compares offers with the same selected input form and route so their estimates are comparable. Any conversion ranges are user-entered or simulated, not published local constants.
 
 ## End-to-end system flow
 
 1. **Enter one buyer order.** Set the requested product form, quantity, selling price, deadline, and whether the order is **confirmed** or **estimated**. Demo orders are labeled simulated.
 2. **Enter three supplier offers.** For each offer, enter supplier type, quantity, quoted price, and optional source or grade notes. All three offers use the selected intake form and processing route so their yields and capacity use can be compared consistently. In this small demo, each offer is accepted or declined as a whole; partial-quantity negotiation is out of scope. The simulator treats offers as scenario inputs, not verified transactions.
 3. **Set capacity, costs, and target.** Enter the available capacity for the constrained step in the scenario (for example, the maximum raw-input kilograms that can be dried during the planning period), relevant processing costs, and the minimum contribution the processor wants to meet. Capacity and target are editable scenario values, not claimed Sorsogon industry benchmarks.
-4. **Set yield uncertainty.** Enter low, typical, and high saleable-output assumptions for each offer. At cold start, these are manually supplied or simulated. BatchPilot labels the estimate basis and does not claim to learn from historical records in this prototype.
-5. **Reveal two plans.** The planner evaluates all combinations of the three offers (at most seven non-empty combinations) against the order and capacity constraints. **Plan A** is the feasible plan with the highest typical-yield contribution. **Plan B** is a plan that meets the processor’s target under low-yield assumptions, if one exists. If none does, the app says so instead of inventing a safe plan.
-6. **Show why.** The result screen shows selected offers, capacity used and remaining, low/typical/high contribution, order coverage, any output beyond the entered order, walk-away prices, and which constraint ruled out alternatives. Revenue is counted only for output matched to the entered order; extra output is shown as unmatched, not assumed sold. For example: “Plan A earns more in the typical case, but misses your target at low yield. Plan B meets the target in the low-yield case and uses 80% of drying capacity.” The wording is illustrative; demo figures are simulated.
-7. **Trigger the live decision change.** Move one price or capacity control. The plans, contribution ranges, counteroffer, and constraint explanation update immediately. The key demo moment is seeing the recommendation switch and being able to see exactly why.
-8. **End the session.** The user can explore another scenario, but the prototype does not save offers, orders, or results after the session.
+4. **Set form-specific conversion uncertainty.** Enter low, typical, and high output per unit of input for the selected form and processing route. For example, fresh pili fruit with pulp and dried nuts in shell require different conversion assumptions when the buyer order is for kernels. At cold start, these values are manually supplied or simulated; the app labels them and does not claim they are locally calibrated.
+5. **Run the server-side optimizer.** The browser sends the scenario to a Next.js API route. The route validates the inputs, evaluates all combinations of the three offers (at most seven non-empty combinations), and returns plans that satisfy the order and capacity constraints.
+6. **Reveal two plans.** **Plan A** is the feasible plan with the highest typical-yield contribution. **Plan B** is a plan that meets the processor’s target under low-yield assumptions, if one exists. If none does, the app says so instead of inventing a safe plan.
+7. **Show why.** The result screen shows selected offers, capacity used and remaining, low/typical/high output and contribution, order coverage, any output beyond the entered order, walk-away prices, and which constraint ruled out alternatives. Revenue is counted only for output matched to the entered order; extra output is shown as unmatched, not assumed sold. For example: “Plan A earns more in the typical case, but misses your target at low yield. Plan B meets the target in the low-yield case and uses 80% of drying capacity.” The wording is illustrative; demo figures are simulated.
+8. **Trigger the live decision change.** Move one price or capacity control. The browser resubmits the scenario; the server recalculates the plans, contribution ranges, counteroffer, and explanation. The key demo moment is seeing the recommendation switch and being able to see exactly why.
+9. **End the session.** The user can explore another scenario, but the prototype does not save offers, orders, or results after the session.
 
 ## Core calculations and upgrades
 
@@ -46,6 +47,7 @@ BatchPilot represents output as a **low / typical / high range**, rather than a 
 The contribution range is calculated transparently for the displayed scenarios:
 
 ```text
+Estimated output = accepted input quantity × form-and-route-specific conversion assumption
 Order-backed sales = min(estimated saleable output, entered order quantity) × entered selling price
 Estimated contribution = order-backed sales − raw-material cost − entered processing costs
 ```
@@ -54,7 +56,7 @@ Estimated contribution = order-backed sales − raw-material cost − entered pr
 
 ### 2. Capacity-constrained offer optimizer
 
-The planner considers the **mix** of offers, not just a one-by-one ranking. With three all-or-nothing offers, it can enumerate every possible combination without a complex optimization service. **Plan A** is the capacity-feasible mix with the highest typical contribution. **Plan B** is a mix that meets the processor’s target under low-yield assumptions, if one exists. The entered order caps the revenue counted in the scenario; any extra output is surfaced as unmatched. The demo makes the tradeoff between typical return and downside visible.
+The planner considers the **mix** of offers, not just a one-by-one ranking. With three all-or-nothing offers, a server-side route can enumerate every possible combination without a complex optimization service. **Plan A** is the capacity-feasible mix with the highest typical contribution. **Plan B** is a mix that meets the processor’s target under low-yield assumptions, if one exists. The entered order caps the revenue counted in the scenario; any extra output is surfaced as unmatched. The demo makes the tradeoff between typical return and downside visible.
 
 The optimizer’s recommendation is only as reliable as its inputs. It does not create new buyers, storage, or processing capacity, and it does not claim that an unconfirmed buyer order is real demand.
 
@@ -82,6 +84,7 @@ Editable prices and assumptions update the plan live. For example, a user can ra
 - User-entered low, typical, and high yield assumptions, prices, and costs.
 - Clear labels distinguishing confirmed versus estimated orders and manual versus simulated inputs.
 - A capacity-constrained offer-mix planner with typical and conservative low-yield plans.
+- A server-side optimization API that validates scenario inputs and returns plans and explanations.
 - Order coverage and unmatched output, with sales counted only up to the entered order quantity.
 - Walk-away price and counteroffer calculations under the displayed yield scenarios.
 - A results view explaining selected offers, capacity use, contribution range, and binding constraints.
@@ -112,17 +115,23 @@ Editable prices and assumptions update the plan live. For example, a user can ra
 
 ## Two-day build priority
 
-1. Build one responsive screen flow for one buyer order, three offers, one capacity constraint, and editable low/typical/high yield assumptions.
-2. Compare the seven possible non-empty all-or-nothing offer combinations. Enforce the entered drying-capacity limit, count sales only up to the entered order quantity, calculate contribution ranges and walk-away prices, and explain why capacity-infeasible combinations fail.
+1. Build one responsive screen flow for one buyer order, three offers of the same input form, one capacity constraint, and editable low/typical/high conversion assumptions.
+2. Implement a Next.js API route to validate the scenario and compare the seven possible non-empty all-or-nothing offer combinations. Calculate output using form-specific conversion assumptions, enforce the drying-capacity limit, count sales only up to the entered order quantity, and return contribution ranges, walk-away prices, and reasons combinations fail.
 3. Show Plan A (highest typical contribution) and Plan B (meets the user’s target under low yield), if a Plan B exists.
 4. Add one live price or capacity control that visibly changes the recommendation, contribution range, and explanation.
 5. Polish the result screen and demo with simulated data. Keep accounts, databases, persistent records, and model training out of the two-day build.
 
+## Suggested technical stack
+
+- **Next.js App Router + TypeScript:** UI plus a server-side Route Handler for the optimizer. [Next.js Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers)
+- **Session-only scenario state:** no database is needed for this prototype because offers and results are not saved after the session.
+- **Vercel:** optional hosting for the Next.js app.
+
+This gives the prototype a real backend computation without spending the two-day build on persistent recordkeeping. The optimizer uses explicit rules and user-entered or simulated values; no machine-learning model is claimed.
+
 ## References
-Dio, J. R. V., Dio, R. V., & Lacson, D. C. F. (2025). [“From Fruit to Nut: Revisiting Pili Nut (*Canarium ovatum* Engl.) Production Capacities and Value-Adding Activities in Sorsogon, Philippines.” *The Philippine Agricultural Scientist*, 108(4)](https://www.ukdr.uplb.edu.ph/pas/vol108/iss4/7/). Reports a value-chain analysis based on interviews with 15 key informants and identifies supply-capacity, storage, and market-linkage constraints.
 
-Latoza, S. B. P. (2023). [*Value Chain Analysis of Pili Nuts (Canarium ovatum) in Sorsogon, Philippines*](https://www.ukdr.uplb.edu.ph/etd-undergrad/11754/). UPLB undergraduate thesis. Describes stakeholder relationships, product forms and routes, informal transactions, and issues including price fluctuation and marketing. The repository notes that full-text access is restricted to UP Gmail accounts.
-
-Torres, E. E. (2025). [*Environmental and Economic Analysis of Post-Harvest Technological Progress of Pili Processing in the Bicol Region, Philippines*](https://www.ukdr.uplb.edu.ph/etd-grad/4072/). UPLB PhD dissertation record. Its abstract describes a study including 110 processors and 120 farmers and discusses processing stages, resource use, and machinery economics. The repository indicates the full document is not available there.
-
-Department of Agriculture Regional Field Office V. (2023). [“Exploring the Potential of Bicol’s Pili Nut as an Export Product.”](https://bicol.da.gov.ph/exploring-the-potential-of-bicols-pili-nut-as-an-export-product/) Provides regional pili context and product-composition information. Composition figures are not used by BatchPilot as processor-specific yield predictions.
+1. Dio, J. R. V., Dio, R. V., & Lacson, D. C. F. (2025). [“From Fruit to Nut: Revisiting Pili Nut (*Canarium ovatum* Engl.) Production Capacities and Value-Adding Activities in Sorsogon, Philippines.” *The Philippine Agricultural Scientist*, 108(4)](https://www.ukdr.uplb.edu.ph/pas/vol108/iss4/7/). Reports a value-chain analysis based on interviews with 15 key informants and identifies supply-capacity, storage, and market-linkage constraints.
+2. Latoza, S. B. P. (2023). [*Value Chain Analysis of Pili Nuts (Canarium ovatum) in Sorsogon, Philippines*](https://www.ukdr.uplb.edu.ph/etd-undergrad/11754/). UPLB undergraduate thesis. Describes stakeholder relationships, product forms and routes, informal transactions, and issues including price fluctuation and marketing. The repository notes that full-text access is restricted to UP Gmail accounts.
+3. Torres, E. E. (2025). [*Environmental and Economic Analysis of Post-Harvest Technological Progress of Pili Processing in the Bicol Region, Philippines*](https://www.ukdr.uplb.edu.ph/etd-grad/4072/). UPLB PhD dissertation record. Its abstract describes a study including 110 processors and 120 farmers and discusses processing stages, resource use, and machinery economics. The repository indicates the full document is not available there.
+4. Department of Agriculture Regional Field Office V. (2023). [“Exploring the Potential of Bicol’s Pili Nut as an Export Product.”](https://bicol.da.gov.ph/exploring-the-potential-of-bicols-pili-nut-as-an-export-product/) Provides regional pili context and product-composition information. Composition figures are not used by BatchPilot as processor-specific yield predictions.
