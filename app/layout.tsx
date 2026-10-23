@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Pili BatchPilot",
+  title: "Talli",
   description:
     "Compare supplier offers with a buyer order and processing capacity to find the best pili buying plan.",
 };

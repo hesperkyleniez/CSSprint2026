@@ -12,10 +12,8 @@ export function AppHeader() {
         className="size-12 shrink-0 object-contain"
       />
       <div className="min-w-0">
-        <p className="text-base font-semibold tracking-tight text-foreground">
-          Pili BatchPilot
-        </p>
-        <p className="text-sm text-muted">Buying decision simulator</p>
+        <p className="text-base font-semibold tracking-tight text-foreground">Talli</p>
+        <p className="text-sm text-muted">Which offers to accept</p>
       </div>
     </div>
   );

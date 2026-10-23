@@ -54,16 +54,26 @@ function planRows(plan: PlanResult, pathway: Pathway) {
   ];
 }
 
+function walkAwayNote(price: number | null, target: string, input: string) {
+  const targetText = peso(Number(target));
+  if (price === null || price < 0) {
+    return `At low yield, this mix misses the ${targetText} target even if the ${input} were free.`;
+  }
+  return `At low yield, this mix still meets the ${targetText} target if the ${input} averages no more than ${peso(price)}/kg.`;
+}
+
 function PlanCard({
   title,
   tone,
   rows,
   note,
+  detail,
 }: {
   title: string;
   tone: "brand" | "kernel";
   rows?: { label: string; note?: string; value?: string }[];
   note?: string;
+  detail?: string;
 }) {
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-xl border border-line bg-white">
@@ -81,13 +91,14 @@ function PlanCard({
             ))}
           </dl>
         ) : null}
+        {detail ? <p className="mt-3 text-sm leading-6 text-pretty text-muted">{detail}</p> : null}
       </div>
     </article>
   );
 }
 
 export function PlansSection() {
-  const { pathway, result, loading, isDirty, isDemo } = useScenario();
+  const { pathway, result, scenario, loading, planShift, isDirty, isDemo } = useScenario();
   const placeholders = [
     { label: "Selected offers" },
     { label: `Capacity used (kg ${pathway.inputShort} input)` },
@@ -112,6 +123,14 @@ export function PlansSection() {
         Tie-breaks favor stronger low-yield contribution, then less input, lower combined costs, fewer offers, and offer order A–C.
       </p>
       {isDemo && result ? <Badge>SIMULATED RESULTS</Badge> : null}
+      {planShift ? (
+        <p
+          className="rounded-lg border border-line bg-inset px-3 py-2 text-sm font-medium leading-6 text-foreground"
+          role="status"
+        >
+          {planShift}
+        </p>
+      ) : null}
       {loading || isDirty ? (
         <p className="text-sm text-muted" aria-live="polite">
           {loading ? "Updating the comparison…" : "Inputs changed; refreshing the comparison…"}
@@ -123,6 +142,11 @@ export function PlansSection() {
             title="Plan A — Highest typical contribution"
             tone="brand"
             rows={planRows(result.planA, pathway)}
+            detail={walkAwayNote(
+              result.planA.walkAwayPricePerKg,
+              scenario.targetContribution,
+              pathway.inputShort,
+            )}
           />
         ) : (
           <PlanCard
@@ -137,6 +161,11 @@ export function PlansSection() {
             title={result.samePlan ? "Plan B — Same combination as Plan A" : "Plan B — Meets target under low yield"}
             tone="kernel"
             rows={planRows(result.planB, pathway)}
+            detail={walkAwayNote(
+              result.planB.walkAwayPricePerKg,
+              scenario.targetContribution,
+              pathway.inputShort,
+            )}
           />
         ) : (
           <PlanCard

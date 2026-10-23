@@ -36,6 +36,11 @@ const fieldIds: Record<ScenarioField, string> = {
 
 const offerLetters = ["a", "b", "c"] as const;
 
+function planLabel(selected: string | null) {
+  if (!selected) return "no feasible mix";
+  return selected.includes(" ") ? `Offers ${selected}` : `Offer ${selected}`;
+}
+
 type ScenarioContextValue = {
   scenario: ScenarioInput;
   pathway: Pathway;
@@ -57,6 +62,7 @@ type ScenarioContextValue = {
   compare: () => void;
   loadDemo: () => void;
   resetScenario: () => void;
+  planShift: string | null;
 };
 
 const ScenarioContext = createContext<ScenarioContextValue | null>(null);
@@ -77,7 +83,9 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
   const [isDemo, setIsDemo] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [pathwayNotice, setPathwayNotice] = useState<string | null>(null);
+  const [planShift, setPlanShift] = useState<string | null>(null);
   const scenarioRef = useRef(scenario);
+  const resultRef = useRef<OptimizeSuccess | null>(null);
   const requestId = useRef(0);
   const hasCompared = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -102,8 +110,10 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
       if (id !== requestId.current) return;
       if (!data.ok) {
         setFieldErrors(data.fieldErrors);
+        resultRef.current = null;
         setResult(null);
         setIsDirty(false);
+        setPlanShift(null);
         const first = Object.keys(data.fieldErrors)[0];
         if (first) {
           document.getElementById(first)?.scrollIntoView({
@@ -114,6 +124,16 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
         return;
       }
       setFieldErrors({});
+      const previous = resultRef.current?.planA?.selectedOffers ?? null;
+      const nextSelected = data.planA?.selectedOffers ?? null;
+      if (scroll) {
+        setPlanShift(null);
+      } else if (previous !== nextSelected) {
+        setPlanShift(
+          `Plan A moved from ${planLabel(previous)} to ${planLabel(nextSelected)}.`,
+        );
+      }
+      resultRef.current = data;
       setResult(data);
       setIsDirty(false);
       if (scroll) {
@@ -178,8 +198,10 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
           yieldTypical: "",
           yieldHigh: "",
         });
+        resultRef.current = null;
         setResult(null);
         setIsDirty(false);
+        setPlanShift(null);
         setFieldErrors({});
         setRequestError(null);
         setPathwayNotice(`Pathway changed to ${nextPathway.label}. Route-dependent order, offer quantities and prices, capacity, processing cost, and yield assumptions were cleared. Review and re-enter them before comparing.`);
@@ -238,15 +260,18 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
         hasCompared.current = false;
         publish(emptyScenario);
         setIsDemo(false);
+        resultRef.current = null;
         setResult(null);
+        setPlanShift(null);
         setIsDirty(false);
         setLoading(false);
         setFieldErrors({});
         setRequestError(null);
         setPathwayNotice(null);
       },
+      planShift,
     };
-  }, [fieldErrors, isDirty, isDemo, loading, pathwayNotice, publish, requestError, result, runCompare, scenario, schedule]);
+  }, [fieldErrors, isDirty, isDemo, loading, pathwayNotice, planShift, publish, requestError, result, runCompare, scenario, schedule]);
 
   return (
     <ScenarioContext.Provider value={value}>{children}</ScenarioContext.Provider>
