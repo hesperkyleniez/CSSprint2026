@@ -1,6 +1,6 @@
-# Pili BatchPilot
+# Talli
 
-**Pili BatchPilot is a buying-decision simulator for pili processors and cooperatives in Sorsogon.** In a focused two-day demo, a processor enters one buyer order, three supplier offers, one capacity bottleneck, and uncertain yields. BatchPilot reveals the best typical-yield plan, checks whether a more conservative plan can still meet the target under low yield, and shows why each plan wins or fails.
+**Talli is a buying-decision simulator for pili processors and cooperatives in Sorsogon.** In a focused two-day demo, a processor enters one buyer order, three supplier offers, one capacity bottleneck, and uncertain yields. BatchPilot reveals the best typical-yield plan, checks whether a more conservative plan can still meet the target under low yield, and shows why each plan wins or fails.
 
 > **Prototype notice:** Any sample offers, prices, yields, costs, orders, and capacities included in the demo are simulated unless explicitly identified as sourced data. The system does not claim to use verified Sorsogon operating data or to guarantee profit.
 
