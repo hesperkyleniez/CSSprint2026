@@ -4,6 +4,17 @@
 
 > **Prototype notice:** Any sample offers, prices, yields, costs, orders, and capacities included in the demo are simulated unless explicitly identified as sourced data. The system does not claim to use verified Sorsogon operating data or to guarantee profit.
 
+## Run the demo
+
+```bash
+npm install
+npm run dev
+```
+
+Open the app and choose **Use simulated demo**. That loads a simulated fresh-fruit scenario: a 50 kg dried nut-in-shell order at ₱500/kg, Offer A at 100 kg for ₱80/kg, Offer B at 60 kg for ₱20/kg, 200 kg drying capacity, ₱10/kg processing cost, a ₱3,000 target, and yields of 0.2 / 0.5 / 0.6. Plan A accepts Offer A for the highest typical contribution and misses the low-yield target. Plan B accepts A and B and meets that target.
+
+Move **Offer A asking price** to about ₱108/kg or higher, or drop **drying capacity** below 100 kg. The browser sends the scenario to `POST /api/optimize` again, and the recommendation, contribution range, and reasons update. These figures are simulated sample inputs. The prototype does not save the scenario.
+
 ## The problem
 
 Pili moves through several product forms and stakeholders before becoming a consumer product. For a processor facing multiple supplier offers, a buyer order, and limited capacity at a processing step such as drying, the buying decision is not simply which offer has the lowest price. The processor must consider the quantity and form offered, expected saleable output, processing costs, order requirements, and the possibility that actual yield will be lower than expected.
