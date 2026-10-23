@@ -11,9 +11,20 @@ npm install
 npm run dev
 ```
 
-Open the app and choose **Use simulated demo**. That loads a simulated fresh-fruit scenario: a 50 kg dried nut-in-shell order at ₱500/kg, Offer A at 100 kg for ₱80/kg, Offer B at 60 kg for ₱20/kg, 200 kg drying capacity, ₱10/kg processing cost, a ₱3,000 target, and yields of 0.2 / 0.5 / 0.6. Plan A accepts Offer A for the highest typical contribution and misses the low-yield target. Plan B accepts A and B and meets that target.
+On a phone, the form is four steps: **Buyer order**, **Supplier offers**, **Capacity & costs**, then **Review**. **Compare offers** is on the review step. On a wide screen, every section is on one page, and **Compare offers** sits with the capacity fields.
 
-Move **Offer A asking price** to about ₱108/kg or higher, or drop **drying capacity** below 100 kg. The browser sends the scenario to `POST /api/optimize` again, and the recommendation, contribution range, and reasons update. These figures are simulated sample inputs. The prototype does not save the scenario.
+Choose **Use simulated demo**. That loads a simulated fresh-fruit scenario:
+
+- 50 kg dried nut-in-shell order at ₱500/kg
+- Offer A, Simulated farmer: 100 kg at ₱80/kg
+- Offer B, Simulated trader: 60 kg at ₱20/kg
+- Offer C left blank
+- 200 kg drying capacity, ₱10/kg processing cost, a ₱3,000 target
+- Yields of 0.35 / 0.5 / 0.6 kg of dried nut-in-shell per kg of fresh pili
+
+Plan A and Plan B are the same mix: accept Offer A. Typical contribution is ₱16,000. Low-yield contribution is ₱8,500, which meets the ₱3,000 target, and the mix uses 100 kg of the 200 kg drying capacity. At low yield, that mix still meets the target if the fresh pili averages no more than ₱135/kg. Offer B alone covers 60% of the order at typical yield, so Talli does not recommend it. Accepting A and B uses 160 kg and a lower typical contribution (₱14,200), because sales stop at the 50 kg order.
+
+After the demo comparison, type **136** in **Offer A asking price**. The browser sends the scenario to `POST /api/optimize` again. Plan A stays Offer A, because that mix still has the higher typical contribution. Plan B becomes Offers A and B, because Offer A alone no longer clears ₱3,000 when yield is low. Drop **drying capacity** below 100 kg and Plan A moves from Offer A to no feasible mix: Offer A no longer fits, and Offer B still does not cover the order. These figures are simulated sample inputs. The prototype does not save the scenario.
 
 ## The problem
 
@@ -25,7 +36,7 @@ A 2025 study of the Sorsogon pili value chain reports that supply exceeds the da
 
 ## Project overview
 
-Talli is designed around one buying decision at a time. The user selects one pili input form and output route, then enters one buyer order, three offers of that same input form, the available capacity for a bottleneck such as drying, and low, typical, and high conversion assumptions. The server-side optimizer compares all feasible offer combinations, displays output and contribution ranges with limiting constraints, calculates a walk-away price, and updates the recommendation when an assumption changes.
+Talli is designed around one buying decision at a time. The user selects one pathway, then enters one buyer order, up to three offers of that same input, the available capacity for that pathway’s bottleneck, and low, typical, and high conversion assumptions. Quantities can be kilograms, or a named unit such as a sack or kaing, with the user’s own estimate of how many kilograms are in one unit. The server-side optimizer compares the offer combinations, displays output and contribution ranges with limiting constraints, calculates a walk-away price, and updates the plans when a compared price or capacity changes.
 
 The central question is: **“Given these offers and my capacity, which combination should I accept, and what is the highest price I can afford to pay?”** Talli explains its recommendation; the processor makes the final decision. The prototype is a session-based simulator, not a records-management app: it does not require an account or save scenario data after the session.
 
@@ -35,19 +46,19 @@ The central question is: **“Given these offers and my capacity, which combinat
 - **Other possible suppliers:** farmers, traders, or cooperatives offering pili to a processor.
 - **Not the primary user:** a retail shop selling packaged pili snacks. That business has different inventory and sales decisions.
 
-The conversion assumption is specific to the selected input form and processing route—for example, fresh fruit with pulp → dried nut in shell → kernel; dried nut in shell → kernel; or kernel → packed kernel product. These routes do not share a yield rate. The demo compares offers with the same selected input form and route so their estimates are comparable. Any conversion ranges are user-entered or simulated, not published local constants.
+The conversion assumption is specific to the selected pathway. The prototype has two: fresh fruit with pulp → dried nut-in-shell, limited by drying capacity, and dried nut-in-shell → kernel, limited by shelling capacity. These routes do not share a yield rate. A scenario compares offers of the same input so their estimates stay comparable. Any conversion ranges are user-entered or simulated, not published local constants.
 
 ## End-to-end system flow
 
-1. **Enter one buyer order.** Set the requested product form, quantity, selling price, deadline, and whether the order is **confirmed** or **estimated**. Demo orders are labeled simulated.
-2. **Enter three supplier offers.** For each offer, enter supplier type, quantity, quoted price, and optional source or grade notes. All three offers use the selected intake form and processing route so their yields and capacity use can be compared consistently. In this small demo, each offer is accepted or declined as a whole; partial-quantity negotiation is out of scope. The simulator treats offers as scenario inputs, not verified transactions.
-3. **Set capacity, costs, and target.** Enter the available capacity for the constrained step in the scenario (for example, the maximum raw-input kilograms that can be dried during the planning period), relevant processing costs, and the minimum contribution the processor wants to meet. Capacity and target are editable scenario values, not claimed Sorsogon industry benchmarks.
-4. **Set form-specific conversion uncertainty.** Enter low, typical, and high output per unit of input for the selected form and processing route. For example, fresh pili fruit with pulp and dried nuts in shell require different conversion assumptions when the buyer order is for kernels. At cold start, these values are manually supplied or simulated; the app labels them and does not claim they are locally calibrated.
-5. **Run the server-side optimizer.** The browser sends the scenario to a Next.js API route. The route validates the inputs, evaluates all combinations of the three offers (at most seven non-empty combinations), and returns plans that satisfy the order and capacity constraints.
-6. **Reveal two plans.** **Plan A** is the feasible plan with the highest typical-yield contribution. **Plan B** is a plan that meets the processor’s target under low-yield assumptions, if one exists. If none does, the app says so instead of inventing a safe plan.
-7. **Show why.** The result screen shows selected offers, capacity used and remaining, low/typical/high output and contribution, order coverage, any output beyond the entered order, walk-away prices, and which constraint ruled out alternatives. Revenue is counted only for output matched to the entered order; extra output is shown as unmatched, not assumed sold. For example: “Plan A earns more in the typical case, but misses your target at low yield. Plan B meets the target in the low-yield case and uses 80% of drying capacity.” The wording is illustrative; demo figures are simulated.
-8. **Trigger the live decision change.** Move one price or capacity control. The browser resubmits the scenario; the server recalculates the plans, contribution ranges, counteroffer, and explanation. The key demo moment is seeing the recommendation switch and being able to see exactly why.
-9. **End the session.** The user can explore another scenario, but the prototype does not save offers, orders, or results after the session.
+1. **Enter one buyer order.** Choose the pathway and whether quantities are kilograms or a named unit. Enter the order quantity and selling price. A loaded demo is labeled **Sample order**; anything else is **Your order**.
+2. **Enter up to three supplier offers.** For each offer, enter a source, quantity, and asking price. Leave a row blank when there are fewer than three. Every offer uses the selected pathway, so yield and capacity stay comparable. Each offer is accepted or declined as a whole; partial-quantity negotiation is out of scope. Offers are scenario inputs, not verified transactions.
+3. **Set capacity, costs, and target.** Enter the available capacity for the pathway’s bottleneck, the variable processing cost, and the least the processor wants to clear if yield comes out low. These are editable scenario values, not claimed Sorsogon industry benchmarks.
+4. **Set pathway-specific conversion uncertainty.** Enter low, typical, and high kilograms of output from 1 kg of input. Yields must be greater than 0 and at most 1. At cold start, these values are typed in or loaded from the simulated demo. The app does not claim they are locally calibrated.
+5. **Run the server-side optimizer.** The browser sends the scenario to a Next.js API route. The route validates the inputs, converts named units to kilograms, and evaluates every combination of the entered offers, including declining all of them.
+6. **Reveal two plans.** **Plan A** is the capacity-feasible mix that covers the full order at typical yield and has the highest positive typical contribution. **Plan B** must cover the full order at low yield, clear the target, and stay above ₱0. If Plan A already does that, both plans are the same mix. If no such mix exists, the app says so instead of inventing a safe plan. Declining every offer is the ₱0 baseline. Loss-making mixes and partial fulfillment are not recommended.
+7. **Show why.** The result shows selected offers, capacity used, low/typical/high output and contribution, order coverage, unmatched output, and a low-yield walk-away price. Revenue is counted only for output matched to the entered order; extra output is unmatched, not assumed sold. On a phone, the longer metrics, rationale, offer comparison, and what-if fields open from **See details**.
+8. **Try another price or capacity.** After a comparison, type a new Offer A price or capacity. The browser resubmits the scenario, and the plans, contribution range, and reasons update. In the demo, ₱136 on Offer A keeps Plan A on Offer A and moves Plan B to Offers A and B.
+9. **End the session.** The user can reset or try another scenario. The prototype does not save offers, orders, or results after the session.
 
 ## Core calculations and upgrades
 
@@ -73,33 +84,35 @@ The optimizer’s recommendation is only as reliable as its inputs. It does not 
 
 ### 3. Counteroffer calculator
 
-The processor sets a target contribution or margin. For a target contribution amount, the walk-away price per kilogram is:
+The processor sets a target contribution. The headline walk-away price uses the **low-yield** case, with sales capped at the entered order:
 
 ```text
 Maximum purchase price/kg =
-  (estimated sales − processing costs − target contribution) ÷ offered kilograms
+  (low-yield order-backed sales − processing costs − target contribution) ÷ input kilograms
 ```
 
-The interface can show the implied contribution at the current offer and at a suggested counteroffer. The result changes with the yield range, selling price, and cost assumptions.
+If that amount is negative, the walk-away price is left blank. The plan details also show a ceiling for each selected supplier, holding the other selected offers at their entered prices. The result changes with the yield range, selling price, and cost assumptions.
 
 ### 4. Price-sensitivity “what if”
 
-Editable prices and assumptions update the plan live. For example, a user can raise a supplier’s quoted price or lower the expected selling price and see whether the selected mix or counteroffer changes. This supports scenario comparison; it is not a forecast that the processor can sell at the entered price.
+After a comparison, Offer A’s asking price and the bottleneck capacity are editable numbers. Changing either one resubmits the scenario and refreshes the plans. This supports comparison; it is not a forecast that the processor can sell at the entered price.
 
 ## Scope
 
 ### Included in the prototype
 
-- One session-based buying scenario with one buyer order, three supplier offers, and a capacity constraint.
-- One selected intake form and processing route per scenario; unlike forms are not compared using a shared yield assumption.
+- One session-based buying scenario with one buyer order, up to three supplier offers, and one capacity constraint.
+- One selected pathway per scenario. The two pathways are fresh fruit with pulp → dried nut-in-shell, and dried nut-in-shell → kernel.
+- Quantities in kilograms, or in a named unit with the user’s kilogram-per-unit estimates. Talli converts those counts before it compares.
 - User-entered low, typical, and high yield assumptions, prices, and costs.
-- Clear labels distinguishing confirmed versus estimated orders and manual versus simulated inputs.
-- A capacity-constrained offer-mix planner with typical and conservative low-yield plans.
+- A **Sample order** label on the simulated demo, and **Your order** on anything else.
+- A capacity-constrained offer-mix planner with a typical-yield Plan A and a low-yield Plan B.
 - A server-side optimization API that validates scenario inputs and returns plans and explanations.
 - Order coverage and unmatched output, with sales counted only up to the entered order quantity.
-- Walk-away price and counteroffer calculations under the displayed yield scenarios.
-- A results view explaining selected offers, capacity use, contribution range, and binding constraints.
-- Live price and assumption sensitivity, with the recommendation and explanation updating immediately.
+- A low-yield walk-away price, left blank when the target cannot be cleared, plus per-supplier ceilings.
+- A results view explaining selected offers, capacity use, contribution range, and ruled-out mixes.
+- A phone flow with four steps and a review screen, and one compact page on a wide screen.
+- After a comparison, editable Offer A price and capacity fields that refresh the plans.
 - Simulated demonstration inputs, clearly marked as simulated.
 
 ### Out of scope
@@ -115,7 +128,7 @@ Editable prices and assumptions update the plan live. For example, a user can ra
 
 ## Limitations and assumptions
 
-- Published sources establish relevant value-chain context, but do not provide enough processor-specific input data to calibrate BatchPilot’s yield, cost, or capacity estimates.
+- Published sources establish relevant value-chain context, but do not provide enough processor-specific input data to calibrate Talli’s yield, cost, or capacity estimates.
 - The 2025 Sorsogon value-chain study is based on purposive interviews with 15 key informants. Its reported regional findings should not be treated as a measurement of every processor’s business.
 - At cold start, yield ranges and costs are manual or simulated assumptions. They are not estimates learned from local processors’ historical records.
 - The low, typical, and high scenarios are not calibrated probabilities or confidence intervals. They make uncertainty visible for scenario comparison.
@@ -126,17 +139,17 @@ Editable prices and assumptions update the plan live. For example, a user can ra
 
 ## Two-day build priority
 
-1. Build one responsive screen flow for one buyer order, three offers of the same input form, one capacity constraint, and editable low/typical/high conversion assumptions.
-2. Implement a Next.js API route to validate the scenario and compare the seven possible non-empty all-or-nothing offer combinations. Calculate output using form-specific conversion assumptions, enforce the drying-capacity limit, count sales only up to the entered order quantity, and return contribution ranges, walk-away prices, and reasons combinations fail.
-3. Show Plan A (highest typical contribution) and Plan B (meets the user’s target under low yield), if a Plan B exists.
-4. Add one live price or capacity control that visibly changes the recommendation, contribution range, and explanation.
-5. Polish the result screen and demo with simulated data. Keep accounts, databases, persistent records, and model training out of the two-day build.
+1. One responsive flow for one buyer order, up to three offers of the same pathway, one capacity constraint, and editable low/typical/high conversion assumptions. Phones step through the form; wide screens keep it on one page.
+2. A Next.js API route that validates the scenario, converts named units to kilograms, and compares every all-or-nothing combination, including declining all offers. Output uses the pathway’s conversion assumptions, capacity is a hard limit, sales stop at the entered order, and the response includes contribution ranges, walk-away prices, and reasons mixes fail.
+3. Plan A is the highest positive typical contribution among mixes that cover the full order. Plan B covers the full order at low yield and meets the target, when such a mix exists.
+4. After a comparison, Offer A’s price and the capacity can be typed in again. The plans, contribution range, and explanation update.
+5. The result screen and demo use simulated data. Accounts, databases, persistent records, and model training stay out of the prototype.
 
 ## Technical stack
 
 - **Next.js App Router + TypeScript:** UI plus a server-side Route Handler for the optimizer. [Next.js Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers)
 - **Session-only scenario state:** no database is needed for this prototype because offers and results are not saved after the session.
-- **Vercel:** optional hosting for the Next.js app.
+- **Local app:** `npm install`, then `npm run dev`. The optimizer runs in the Next.js route on that same app.
 
 This gives the prototype a real backend computation without spending the two-day build on persistent recordkeeping. The optimizer uses explicit rules and user-entered or simulated values; no machine-learning model is claimed.
 
