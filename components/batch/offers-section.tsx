@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { TextField } from "@/components/ui/field";
 import { Panel, SectionCard } from "@/components/ui/section-card";
-import { numberError } from "@/lib/scenario";
+import { numberError, offerPriceLabel, offerQuantityLabel } from "@/lib/scenario";
 import { useScenario } from "@/components/batch/scenario-context";
 
 const offers = [
@@ -20,22 +20,25 @@ export function OffersSection() {
       id="supplier-offers"
       step={2}
       title="Supplier offers"
-      description="Each offer is accepted in full or declined. All three use the selected input."
+      hideTitleOnMobile
+      description="Up to three. Leave a row blank."
     >
       {fieldError("offers") ? (
-        <p className="text-sm leading-6 text-[#a24b38]" role="alert">
+        <p id="offers" tabIndex={-1} className="text-sm leading-6 text-[#8a3b2c]" role="alert">
           {fieldError("offers")}
         </p>
       ) : null}
+      <div className="grid gap-3 lg:grid-cols-3 lg:items-stretch">
       {offers.map((offer) => {
         const input = scenario.offers[offer.index];
         return (
           <Panel key={offer.id}>
-            <div className="mb-3 flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-foreground">{offer.title}</h3>
-              <Badge>{isDemo ? "SIMULATED" : "Scenario input"}</Badge>
-            </div>
-            <div className="grid items-end gap-3 lg:grid-cols-3">
+            <fieldset className="min-w-0 border-0 p-0">
+            <legend className="m-0 mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+              {offer.title}
+              <Badge tone={isDemo ? "solid" : "outline"}>{isDemo ? "Sample" : "Your entry"}</Badge>
+            </legend>
+            <div className="grid items-end gap-3">
               <TextField
                 id={`offer-${offer.id}-source`}
                 label="Source"
@@ -44,7 +47,7 @@ export function OffersSection() {
               />
               <TextField
                 id={`offer-${offer.id}-quantity`}
-                label={`Quantity (kg ${pathway.inputName})`}
+                label={offerQuantityLabel(scenario, pathway)}
                 inputMode="decimal"
                 value={input.quantity}
                 onChange={(value) => setOffer(offer.index, "quantity", value)}
@@ -54,16 +57,18 @@ export function OffersSection() {
               />
               <TextField
                 id={`offer-${offer.id}-price`}
-                label="Asking price (₱/kg input)"
+                label={offerPriceLabel(scenario)}
                 inputMode="decimal"
                 value={input.price}
                 onChange={(value) => setOffer(offer.index, "price", value)}
                 error={numberError(input.price) ?? fieldError(`offer-${offer.id}-price`)}
               />
             </div>
+            </fieldset>
           </Panel>
         );
       })}
+      </div>
     </SectionCard>
   );
 }

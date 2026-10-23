@@ -4,11 +4,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
+import { expandSection } from "@/components/ui/section-card";
 import { demoScenario } from "@/lib/demo-scenario";
 import type { OptimizeResult, OptimizeSuccess } from "@/lib/optimize";
 import {
@@ -17,13 +19,17 @@ import {
   type OfferInput,
   type Pathway,
   type PathwayId,
+  type QuantityMeasure,
   type ScenarioInput,
 } from "@/lib/scenario";
 
 type OfferField = keyof OfferInput;
-type ScenarioField = Exclude<keyof ScenarioInput, "pathwayId" | "offers">;
+type ScenarioField = Exclude<keyof ScenarioInput, "pathwayId" | "offers" | "quantityMeasure">;
 
 const fieldIds: Record<ScenarioField, string> = {
+  unitName: "unit-name",
+  inputKgPerUnit: "input-kg-per-unit",
+  orderKgPerUnit: "order-kg-per-unit",
   orderQuantity: "order-quantity",
   buyerPrice: "buyer-price",
   capacity: "drying-capacity",
@@ -50,8 +56,10 @@ type ScenarioContextValue = {
   isDemo: boolean;
   requestError: string | null;
   pathwayNotice: string | null;
+  fieldErrors: Record<string, string>;
   fieldError: (id: string) => string | undefined;
   setPathwayId: (id: PathwayId) => void;
+  setQuantityMeasure: (measure: QuantityMeasure) => void;
   setField: (field: ScenarioField, value: string, refresh?: boolean) => void;
   setOffer: (
     index: 0 | 1 | 2,
@@ -89,6 +97,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
   const requestId = useRef(0);
   const hasCompared = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusErrors = useRef(false);
 
   const publish = useCallback((next: ScenarioInput) => {
     scenarioRef.current = next;
@@ -109,18 +118,12 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
       const data = (await response.json()) as OptimizeResult;
       if (id !== requestId.current) return;
       if (!data.ok) {
+        focusErrors.current = scroll;
         setFieldErrors(data.fieldErrors);
         resultRef.current = null;
         setResult(null);
         setIsDirty(false);
         setPlanShift(null);
-        const first = Object.keys(data.fieldErrors)[0];
-        if (first) {
-          document.getElementById(first)?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        }
         return;
       }
       setFieldErrors({});
@@ -137,10 +140,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
       setResult(data);
       setIsDirty(false);
       if (scroll) {
-        document.getElementById("recommended-plans")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
+        expandSection("recommended-plans");
       }
     } catch {
       if (id !== requestId.current) return;
@@ -165,6 +165,12 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
     [runCompare],
   );
 
+  useEffect(() => {
+    if (!focusErrors.current || Object.keys(fieldErrors).length === 0) return;
+    focusErrors.current = false;
+    expandSection("processing-pathway", "scenario-errors");
+  }, [fieldErrors]);
+
   const value = useMemo<ScenarioContextValue>(() => {
     return {
       scenario,
@@ -175,6 +181,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
       isDemo,
       requestError,
       pathwayNotice,
+      fieldErrors,
       fieldError: (id) => fieldErrors[id],
       setPathwayId: (id) => {
         if (timer.current) clearTimeout(timer.current);
@@ -205,6 +212,41 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
         setFieldErrors({});
         setRequestError(null);
         setPathwayNotice(`Pathway changed to ${nextPathway.label}. Route-dependent order, offer quantities and prices, capacity, processing cost, and yield assumptions were cleared. Review and re-enter them before comparing.`);
+        setIsDemo(false);
+        hasCompared.current = false;
+      },
+      setQuantityMeasure: (measure) => {
+        const current = scenarioRef.current;
+        if (current.quantityMeasure === measure) return;
+        if (timer.current) clearTimeout(timer.current);
+        requestId.current += 1;
+        setLoading(false);
+        publish({
+          ...current,
+          quantityMeasure: measure,
+          unitName:
+            measure === "other" && current.unitName.trim() === "" ? "sack" : current.unitName,
+          orderQuantity: "",
+          buyerPrice: "",
+          offers: current.offers.map((offer) => ({
+            ...offer,
+            quantity: "",
+            price: "",
+          })) as ScenarioInput["offers"],
+          capacity: "",
+          variableCost: "",
+        });
+        resultRef.current = null;
+        setResult(null);
+        setIsDirty(false);
+        setPlanShift(null);
+        setFieldErrors({});
+        setRequestError(null);
+        setPathwayNotice(
+          measure === "other"
+            ? "Measure changed to a named unit. Order, offer quantities and prices, capacity, and processing cost were cleared. Enter how many kilograms are in one unit, then re-enter the counts in that unit."
+            : "Measure changed back to kilograms. Order, offer quantities and prices, capacity, and processing cost were cleared. Re-enter them in kilograms.",
+        );
         setIsDemo(false);
         hasCompared.current = false;
       },

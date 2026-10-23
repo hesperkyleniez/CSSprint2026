@@ -4,6 +4,10 @@ import type { ScenarioInput } from "./scenario";
 export function demoScenario(): ScenarioInput {
   return {
     pathwayId: "fresh-to-dried",
+    quantityMeasure: "kg",
+    unitName: "",
+    inputKgPerUnit: "",
+    orderKgPerUnit: "",
     orderQuantity: "50",
     buyerPrice: "500",
     offers: [

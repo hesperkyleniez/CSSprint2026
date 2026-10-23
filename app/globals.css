@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3eee6;
-  --foreground: #1c1712;
-  --surface: #fffdf8;
-  --inset: #f6f1e7;
-  --line: #e4dacb;
-  --muted: #5c554c;
+  --background: #f4f1eb;
+  --foreground: #1c1916;
+  --surface: #ffffff;
+  --inset: #f3efe8;
+  --line: #e6e1d8;
+  --muted: #6d675f;
   --brand: #1f4d3a;
   --brand-deep: #16382b;
-  --kernel: #9a6230;
-  --track: #ddd4c4;
+  --kernel: #c45c2a;
+  --track: #e4dfd6;
 }
 
 @theme inline {
@@ -34,80 +34,12 @@ html {
 
 body {
   overflow-x: clip;
-  background:
-    radial-gradient(880px 380px at 50% -140px, #fffaf3 0%, transparent 70%),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
 
 ::selection {
-  background: #d7e7dc;
-  color: #16382b;
-}
-
-.assumption-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 1.25rem;
-  background: transparent;
-  cursor: pointer;
-}
-
-.assumption-slider:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 3px;
-  border-radius: 999px;
-}
-
-.assumption-slider::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 999px;
-  background: var(--track);
-}
-
-.assumption-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  margin-top: -6px;
-  height: 16px;
-  width: 16px;
-  border-radius: 999px;
-  border: 2px solid var(--surface);
-  background: var(--brand);
-  box-shadow: 0 0 0 1px var(--brand);
-}
-
-.assumption-slider::-moz-range-track {
-  height: 4px;
-  border: none;
-  border-radius: 999px;
-  background: var(--track);
-}
-
-.assumption-slider::-moz-range-thumb {
-  height: 16px;
-  width: 16px;
-  border: 2px solid var(--surface);
-  border-radius: 999px;
-  background: var(--brand);
-  box-shadow: 0 0 0 1px var(--brand);
-}
-
-@media (pointer: coarse) {
-  .assumption-slider {
-    height: 1.75rem;
-  }
-
-  .assumption-slider::-webkit-slider-thumb {
-    height: 22px;
-    width: 22px;
-    margin-top: -9px;
-  }
-
-  .assumption-slider::-moz-range-thumb {
-    height: 22px;
-    width: 22px;
-  }
+  background: #efe6dc;
+  color: #1c1916;
 }

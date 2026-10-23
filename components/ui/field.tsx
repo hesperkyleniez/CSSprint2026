@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 const controlClass =
-  "h-11 w-full min-w-0 rounded-lg border border-line bg-white px-3 text-base text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15";
+  "h-11 w-full min-w-0 rounded-full border border-[#ddd6cc] bg-white px-4 text-base text-foreground outline-none transition focus-visible:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground";
 
 function FieldShell({
   id,
@@ -27,11 +27,11 @@ function FieldShell({
     <div className="flex min-w-0 flex-col gap-1.5">
       <label
         htmlFor={id}
-        className="text-[13px] font-medium leading-5 text-pretty text-foreground"
+        className="text-sm font-medium leading-5 text-pretty text-foreground"
       >
         {label}
         {detail ? (
-          <span className="mt-0.5 block text-xs font-normal leading-4 text-pretty text-muted">
+          <span className="mt-0.5 block text-xs leading-4 font-normal text-pretty text-muted/65 italic">
             {detail}
           </span>
         ) : null}
@@ -40,7 +40,7 @@ function FieldShell({
       {message ? (
         <p
           id={messageId}
-          className={`text-xs leading-5 text-pretty ${error ? "text-[#8a3b2c]" : "text-muted"}`}
+          className={`text-sm leading-5 text-pretty ${error ? "text-[#8a3b2c]" : "text-muted/65 italic"}`}
         >
           {message}
         </p>
@@ -54,7 +54,7 @@ function Chevron() {
     <svg
       viewBox="0 0 20 20"
       aria-hidden="true"
-      className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted"
+      className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted"
     >
       <path
         d="M5.5 7.5 10 12l4.5-4.5"
@@ -74,6 +74,7 @@ export function TextField({
   detail,
   hint,
   error,
+  describedBy,
   value,
   onChange,
   inputMode = "text",
@@ -83,11 +84,13 @@ export function TextField({
   detail?: string;
   hint?: string;
   error?: string;
+  describedBy?: string;
   value?: string;
   onChange?: (value: string) => void;
   inputMode?: "text" | "decimal" | "numeric";
 }) {
   const messageId = error || hint ? `${id}-message` : undefined;
+  const describedByIds = [messageId, describedBy].filter(Boolean).join(" ") || undefined;
 
   return (
     <FieldShell id={id} label={label} detail={detail} hint={hint} error={error}>
@@ -100,8 +103,8 @@ export function TextField({
         autoComplete="off"
         spellCheck={false}
         aria-invalid={error ? true : undefined}
-        aria-describedby={messageId}
-        className={`${controlClass} ${error ? "border-[#a24b38] focus:border-[#a24b38] focus:ring-[#a24b38]/20" : ""}`}
+        aria-describedby={describedByIds}
+        className={`${controlClass} ${error ? "border-[#a24b38] focus-visible:border-[#a24b38] focus-visible:outline-[#a24b38]" : ""}`}
       />
     </FieldShell>
   );
@@ -127,7 +130,7 @@ export function ReadOnlyField({
       <p
         id={id}
         aria-labelledby={`${id}-label`}
-        className="flex min-h-11 items-center rounded-lg border border-line bg-inset px-3 py-2 text-base leading-5 text-pretty text-foreground"
+        className="flex min-h-11 items-center rounded-full border border-[#ddd6cc] bg-inset px-4 py-2 text-base leading-5 text-pretty text-foreground"
       >
         {value}
       </p>
@@ -161,7 +164,7 @@ export function SelectField({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           aria-describedby={messageId}
-          className={`${controlClass} cursor-pointer appearance-none pr-10`}
+          className={`${controlClass} cursor-pointer appearance-none pr-12`}
         >
           {children}
         </select>

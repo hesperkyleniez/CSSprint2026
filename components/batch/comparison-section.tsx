@@ -27,23 +27,23 @@ export function ComparisonSection() {
   ];
 
   return (
-    <SectionCard id="offer-comparison" step={6} title="Offer comparison">
-      <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line sm:hidden">
+    <SectionCard id="offer-comparison" step={6} title="Offer comparison" collapseOnMobile>
+      <ul className="divide-y divide-line overflow-hidden rounded-3xl border border-[#ece7df] sm:hidden">
         {offers.map((offer) => (
-          <li key={offer.id} className="flex flex-col gap-2 px-3 py-3 text-sm">
+          <li key={offer.id} className="flex flex-col gap-3 px-3 py-4 text-sm">
             <p className="font-medium text-foreground">Offer {offer.id.toUpperCase()}</p>
             <p className="flex items-start justify-between gap-4">
               <span className="text-muted">Decision</span>
               <DecisionText decision={offer.decision} />
             </p>
-            <p className="text-pretty leading-6 text-foreground">
-              <span className="text-muted">Reason. </span>
+            <p className="text-pretty leading-7 text-foreground">
+              <span className="block text-muted">Reason</span>
               {offer.reason}
             </p>
           </li>
         ))}
       </ul>
-      <div className="hidden overflow-x-auto rounded-lg border border-line sm:block">
+      <div className="hidden overflow-x-auto rounded-3xl border border-[#ece7df] sm:block">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="bg-inset text-left text-muted">

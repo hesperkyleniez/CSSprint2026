@@ -137,6 +137,7 @@ function parseScenario(
   if (!isPathwayId(pathwayId)) {
     fieldErrors.pathway = "Select a processing pathway.";
   }
+  const factors = readMeasure(input, fieldErrors);
 
   const orderQuantityKg = readNumber(
     input.orderQuantity,
@@ -165,7 +166,7 @@ function parseScenario(
   const targetContribution = readNumber(
     input.targetContribution,
     fieldIds.targetContribution,
-    "Target contribution",
+    "the least you want to clear",
     fieldErrors,
   );
   const yieldLow = readNumber(input.yieldLow, fieldIds.yieldLow, "Low yield", fieldErrors);
@@ -209,7 +210,7 @@ function parseScenario(
     }
   }
 
-  if (Object.keys(fieldErrors).length > 0 || !offers || !isPathwayId(pathwayId)) {
+  if (Object.keys(fieldErrors).length > 0 || !offers || !factors || !isPathwayId(pathwayId)) {
     return {
       ok: false,
       error: "Check the scenario fields.",
@@ -234,13 +235,21 @@ function parseScenario(
     ok: true,
     data: {
       pathway: getPathway(pathwayId),
-      orderQuantityKg,
-      buyerPricePerKg,
-      capacityKg,
-      variableCostPerKg,
+      orderQuantityKg: orderQuantityKg * factors.orderFactor,
+      buyerPricePerKg: buyerPricePerKg / factors.orderFactor,
+      capacityKg: capacityKg * factors.inputFactor,
+      variableCostPerKg: variableCostPerKg / factors.inputFactor,
       targetContribution,
       yields: { low: yieldLow, typical: yieldTypical, high: yieldHigh },
-      offers,
+      offers: offers.map((offer) =>
+        offer
+          ? {
+              ...offer,
+              quantityKg: offer.quantityKg * factors.inputFactor,
+              pricePerKg: offer.pricePerKg / factors.inputFactor,
+            }
+          : null,
+      ),
     },
   };
 }
@@ -696,6 +705,50 @@ function readOffers(
 
     return { id, source, quantityKg, pricePerKg };
   });
+}
+
+function readMeasure(
+  input: Record<string, unknown>,
+  fieldErrors: Record<string, string>,
+): { inputFactor: number; orderFactor: number } | null {
+  if (input.quantityMeasure !== "other") {
+    return { inputFactor: 1, orderFactor: 1 };
+  }
+
+  const unitName = typeof input.unitName === "string" ? input.unitName.trim() : "";
+  if (!unitName) {
+    fieldErrors["unit-name"] = "Name the measure, like sack or kaing.";
+  }
+
+  const inputFactor = readPositiveKg(
+    input.inputKgPerUnit,
+    "input-kg-per-unit",
+    "Kilograms of input in one unit",
+    fieldErrors,
+  );
+  const orderFactor = readPositiveKg(
+    input.orderKgPerUnit,
+    "order-kg-per-unit",
+    "Kilograms of the buyer product in one unit",
+    fieldErrors,
+  );
+
+  if (!unitName || inputFactor === null || orderFactor === null) return null;
+  return { inputFactor, orderFactor };
+}
+
+function readPositiveKg(
+  value: unknown,
+  fieldId: string,
+  label: string,
+  fieldErrors: Record<string, string>,
+) {
+  const parsed = readNumber(value, fieldId, label, fieldErrors);
+  if (parsed !== null && parsed <= 0) {
+    fieldErrors[fieldId] = "Enter a weight greater than zero.";
+    return null;
+  }
+  return parsed;
 }
 
 function readNumber(

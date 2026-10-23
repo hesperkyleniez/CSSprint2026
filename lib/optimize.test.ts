@@ -6,6 +6,10 @@ import type { ScenarioInput } from "./scenario";
 function scenario(patch: Partial<ScenarioInput> = {}): ScenarioInput {
   return {
     pathwayId: "fresh-to-dried",
+    quantityMeasure: "kg",
+    unitName: "",
+    inputKgPerUnit: "",
+    orderKgPerUnit: "",
     orderQuantity: "50",
     buyerPrice: "500",
     offers: [
@@ -162,6 +166,55 @@ test("returns field errors for invalid or incomplete input", () => {
   assert.equal(result.fieldErrors["order-quantity"], "Enter a number, like 120 or 12.5.");
   assert.match(result.fieldErrors["yield-typical"], /low yield/);
   assert.equal(result.fieldErrors["offer-a-price"], "Enter offer a asking price.");
+});
+
+test("converts a named unit into kilograms before comparing", () => {
+  const kilos = optimizeScenario(scenario());
+  const sacks = optimizeScenario(
+    scenario({
+      quantityMeasure: "other",
+      unitName: "sack",
+      inputKgPerUnit: "10",
+      orderKgPerUnit: "10",
+      orderQuantity: "5",
+      buyerPrice: "5000",
+      offers: [
+        { source: "North farm", quantity: "10", price: "800" },
+        { source: "Coop", quantity: "6", price: "200" },
+        { source: "", quantity: "", price: "" },
+      ],
+      capacity: "20",
+      variableCost: "100",
+    }),
+  );
+  assert.equal(kilos.ok, true);
+  assert.equal(sacks.ok, true);
+  if (!kilos.ok || !sacks.ok) return;
+
+  assert.deepEqual(sacks.planA?.offers, kilos.planA?.offers);
+  assert.equal(sacks.planA?.contribution.typical, kilos.planA?.contribution.typical);
+  assert.equal(sacks.planA?.capacityUsedKg, kilos.planA?.capacityUsedKg);
+  assert.equal(sacks.planA?.walkAwayPricePerKg, kilos.planA?.walkAwayPricePerKg);
+});
+
+test("asks for a kilogram estimate when the measure is not kilograms", () => {
+  const result = optimizeScenario(
+    scenario({
+      quantityMeasure: "other",
+      unitName: "",
+      inputKgPerUnit: "",
+      orderKgPerUnit: "0",
+    }),
+  );
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+
+  assert.equal(result.fieldErrors["unit-name"], "Name the measure, like sack or kaing.");
+  assert.equal(
+    result.fieldErrors["input-kg-per-unit"],
+    "Enter kilograms of input in one unit.",
+  );
+  assert.equal(result.fieldErrors["order-kg-per-unit"], "Enter a weight greater than zero.");
 });
 
 test("rules out a mix that is over capacity", () => {

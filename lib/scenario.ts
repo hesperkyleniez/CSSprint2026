@@ -26,8 +26,14 @@ export type OfferInput = {
   price: string;
 };
 
+export type QuantityMeasure = "kg" | "other";
+
 export type ScenarioInput = {
   pathwayId: PathwayId;
+  quantityMeasure: QuantityMeasure;
+  unitName: string;
+  inputKgPerUnit: string;
+  orderKgPerUnit: string;
   orderQuantity: string;
   buyerPrice: string;
   offers: [OfferInput, OfferInput, OfferInput];
@@ -47,6 +53,10 @@ const emptyOffer = (): OfferInput => ({
 
 export const emptyScenario: ScenarioInput = {
   pathwayId: "fresh-to-dried",
+  quantityMeasure: "kg",
+  unitName: "",
+  inputKgPerUnit: "",
+  orderKgPerUnit: "",
   orderQuantity: "",
   buyerPrice: "",
   offers: [emptyOffer(), emptyOffer(), emptyOffer()],
@@ -64,6 +74,48 @@ export function getPathway(id: PathwayId): Pathway {
     return pathways[0];
   }
   return pathway;
+}
+
+export function measureNoun(scenario: Pick<ScenarioInput, "quantityMeasure" | "unitName">) {
+  if (scenario.quantityMeasure !== "other") return null;
+  const name = scenario.unitName.trim();
+  return name || "unit";
+}
+
+export function orderQuantityLabel(scenario: ScenarioInput, pathway: Pathway) {
+  const noun = measureNoun(scenario);
+  if (!noun) return `Order quantity (kg ${pathway.outputName})`;
+  return `Order quantity (${noun} of ${pathway.outputName})`;
+}
+
+export function buyerPriceLabel(scenario: ScenarioInput) {
+  const noun = measureNoun(scenario);
+  if (!noun) return "Buyer price (₱/kg)";
+  return `Buyer price (₱/${noun})`;
+}
+
+export function offerQuantityLabel(scenario: ScenarioInput, pathway: Pathway) {
+  const noun = measureNoun(scenario);
+  if (!noun) return `Quantity (kg ${pathway.inputName})`;
+  return `Quantity (${noun} of ${pathway.inputName})`;
+}
+
+export function offerPriceLabel(scenario: ScenarioInput) {
+  const noun = measureNoun(scenario);
+  if (!noun) return "Asking price (₱/kg input)";
+  return `Asking price (₱/${noun})`;
+}
+
+export function capacityQuantityLabel(scenario: ScenarioInput, pathway: Pathway) {
+  const noun = measureNoun(scenario);
+  if (!noun) return `${pathway.capacityStep} capacity (kg ${pathway.inputShort})`;
+  return `${pathway.capacityStep} capacity (${noun} of ${pathway.inputShort})`;
+}
+
+export function variableCostLabel(scenario: ScenarioInput) {
+  const noun = measureNoun(scenario);
+  if (!noun) return "Variable processing cost (₱/kg input)";
+  return `Variable processing cost (₱/${noun} of input)`;
 }
 
 export function buyerNeedsLabel(pathway: Pathway) {

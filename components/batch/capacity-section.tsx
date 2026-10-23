@@ -1,26 +1,27 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { ReadOnlyField, TextField } from "@/components/ui/field";
+import { TextField } from "@/components/ui/field";
 import { SectionCard } from "@/components/ui/section-card";
-import { numberError } from "@/lib/scenario";
+import { capacityQuantityLabel, numberError, variableCostLabel } from "@/lib/scenario";
 import { useScenario } from "@/components/batch/scenario-context";
 
 export function CapacitySection() {
   const { scenario, pathway, setField, fieldError, compare, loadDemo, resetScenario, loading, requestError } =
     useScenario();
-  const yieldDetail = `kg ${pathway.outputName} / kg ${pathway.inputShort}`;
 
   return (
+    <>
     <SectionCard
       id="capacity"
       step={3}
       title="Capacity, costs & conversion assumptions"
+      hideTitleOnMobile
     >
-      <div className="grid items-end gap-4 lg:grid-cols-3">
+      <div className="grid items-end gap-3 sm:grid-cols-2">
         <TextField
           id="drying-capacity"
-          label={`${pathway.capacityStep} capacity (kg ${pathway.inputShort})`}
+          label={capacityQuantityLabel(scenario, pathway)}
           inputMode="decimal"
           value={scenario.capacity}
           onChange={(value) => setField("capacity", value)}
@@ -28,7 +29,7 @@ export function CapacitySection() {
         />
         <TextField
           id="variable-cost"
-          label="Variable processing cost (₱/kg input)"
+          label={variableCostLabel(scenario)}
           inputMode="decimal"
           value={scenario.variableCost}
           onChange={(value) => setField("variableCost", value)}
@@ -36,24 +37,26 @@ export function CapacitySection() {
         />
         <TextField
           id="target-contribution"
-          label="Target contribution (₱)"
-          detail="Set by the processor as a minimum low-yield contribution goal. It is a scenario threshold, not an industry benchmark."
+          label="Least you want to clear (₱)"
+          detail="Your goal if yield is low."
           inputMode="decimal"
           value={scenario.targetContribution}
           onChange={(value) => setField("targetContribution", value)}
           error={numberError(scenario.targetContribution) ?? fieldError("target-contribution")}
         />
       </div>
-      <div className="w-full sm:max-w-xs">
-        <ReadOnlyField id="assumptions" label="Assumptions" value="Simulated" />
-      </div>
-      <div className="flex flex-col gap-3">
-        <p className="text-sm font-medium text-foreground">Output per kg input</p>
-        <div className="grid items-end gap-4 lg:grid-cols-3">
+      <fieldset className="flex min-w-0 flex-col gap-3 border-0 p-0">
+        <legend className="m-0 text-sm font-medium text-foreground">
+          Output from 1 kg of {pathway.inputShort}
+        </legend>
+        <p id="yield-hint" className="text-sm leading-5 text-pretty text-muted/65 italic">
+          Weak, normal, and strong batch.
+        </p>
+        <div className="grid items-end gap-3 sm:grid-cols-3">
           <TextField
             id="yield-low"
-            label="Low"
-            detail={yieldDetail}
+            label="Low yield"
+            describedBy="yield-hint"
             inputMode="decimal"
             value={scenario.yieldLow}
             onChange={(value) => setField("yieldLow", value)}
@@ -61,8 +64,8 @@ export function CapacitySection() {
           />
           <TextField
             id="yield-typical"
-            label="Typical"
-            detail={yieldDetail}
+            label="Typical yield"
+            describedBy="yield-hint"
             inputMode="decimal"
             value={scenario.yieldTypical}
             onChange={(value) => setField("yieldTypical", value)}
@@ -70,26 +73,23 @@ export function CapacitySection() {
           />
           <TextField
             id="yield-high"
-            label="High"
-            detail={yieldDetail}
+            label="High yield"
+            describedBy="yield-hint"
             inputMode="decimal"
             value={scenario.yieldHigh}
             onChange={(value) => setField("yieldHigh", value)}
             error={numberError(scenario.yieldHigh) ?? fieldError("yield-high")}
           />
         </div>
-      </div>
-      <p className="text-xs leading-5 text-pretty text-muted">
-        Scenario assumptions only, not verified local yields.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-3">
+      </fieldset>
+      <div className="hidden gap-2 lg:grid lg:grid-cols-3">
         <Button variant="secondary" onClick={loadDemo} disabled={loading}>
           Use simulated demo
         </Button>
         <Button onClick={compare} disabled={loading}>
           {loading ? "Comparing…" : "Compare offers"}
         </Button>
-        <Button variant="secondary" onClick={resetScenario} disabled={loading}>
+        <Button variant="quiet" onClick={resetScenario} disabled={loading}>
           Reset scenario
         </Button>
       </div>
@@ -98,9 +98,10 @@ export function CapacitySection() {
           {requestError}
         </p>
       ) : null}
-      <p className="text-xs leading-5 text-pretty text-muted">
-        The simulated demo is sample data, not a verified local batch.
+      <p className="text-xs leading-5 text-pretty text-muted/65 italic">
+        Sample data, not a verified batch.
       </p>
     </SectionCard>
+    </>
   );
 }
