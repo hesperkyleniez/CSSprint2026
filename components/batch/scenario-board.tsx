@@ -151,7 +151,7 @@ export function ScenarioBoard() {
   const form = mode === "form";
   const offerSummary = scenario.offers
     .map((offer, index) => {
-      const letter = "ABC"[index];
+      const letter = String.fromCharCode(65 + index);
       if (!offer.source.trim() && !offer.quantity.trim() && !offer.price.trim()) return `${letter}: blank`;
       return `${letter}: ${offer.source.trim() || "No source"}, ${entered(offer.quantity)} @ ${entered(offer.price)}`;
     })
@@ -188,7 +188,7 @@ export function ScenarioBoard() {
             </Button>
           </div>
         </div>
-        <div className={`lg:h-full lg:[grid-area:offers] ${showOnPhone(form && step === 2)}`}>
+        <div className={`min-w-0 lg:h-full lg:[grid-area:offers] ${showOnPhone(form && step === 2)}`}>
           <OffersSection />
         </div>
         <div className={`lg:h-full lg:[grid-area:capacity] ${showOnPhone(form && step === 3)}`}>

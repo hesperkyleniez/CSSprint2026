@@ -13,7 +13,6 @@ export function demoScenario(): ScenarioInput {
     offers: [
       { source: "Simulated farmer", quantity: "100", price: "80" },
       { source: "Simulated trader", quantity: "60", price: "20" },
-      { source: "", quantity: "", price: "" },
     ],
     capacity: "200",
     variableCost: "10",

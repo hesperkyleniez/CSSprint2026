@@ -13,7 +13,7 @@ export default function Home() {
               Plan a pili purchase
             </h1>
             <p className="text-sm leading-5 text-pretty text-muted">
-              Enter the buyer order and up to three offers. Talli shows which
+              Enter the buyer order and the supplier offers. Talli shows which
               offers still fill that order.
             </p>
             <p className="text-xs leading-5 text-muted">

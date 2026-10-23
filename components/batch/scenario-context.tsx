@@ -16,6 +16,9 @@ import type { OptimizeResult, OptimizeSuccess } from "@/lib/optimize";
 import {
   emptyScenario,
   getPathway,
+  maxOfferCount,
+  minOfferCount,
+  offerLetter,
   type OfferInput,
   type Pathway,
   type PathwayId,
@@ -40,8 +43,6 @@ const fieldIds: Record<ScenarioField, string> = {
   yieldHigh: "yield-high",
 };
 
-const offerLetters = ["a", "b", "c"] as const;
-
 function planLabel(selected: string | null) {
   if (!selected) return "no feasible mix";
   return selected.includes(" ") ? `Offers ${selected}` : `Offer ${selected}`;
@@ -61,12 +62,9 @@ type ScenarioContextValue = {
   setPathwayId: (id: PathwayId) => void;
   setQuantityMeasure: (measure: QuantityMeasure) => void;
   setField: (field: ScenarioField, value: string, refresh?: boolean) => void;
-  setOffer: (
-    index: 0 | 1 | 2,
-    field: OfferField,
-    value: string,
-    refresh?: boolean,
-  ) => void;
+  setOffer: (index: number, field: OfferField, value: string, refresh?: boolean) => void;
+  addOffer: () => void;
+  removeOffer: (index: number) => void;
   compare: () => void;
   loadDemo: () => void;
   resetScenario: () => void;
@@ -198,7 +196,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
             ...offer,
             quantity: "",
             price: "",
-          })) as ScenarioInput["offers"],
+          })),
           capacity: "",
           variableCost: "",
           yieldLow: "",
@@ -232,7 +230,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
             ...offer,
             quantity: "",
             price: "",
-          })) as ScenarioInput["offers"],
+          })),
           capacity: "",
           variableCost: "",
         });
@@ -264,7 +262,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
           ...scenarioRef.current,
           offers: scenarioRef.current.offers.map((offer, offerIndex) =>
             offerIndex === index ? { ...offer, [field]: nextValue } : offer,
-          ) as ScenarioInput["offers"],
+          ),
         };
         publish(next);
         setIsDemo(false);
@@ -273,11 +271,45 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
         setFieldErrors((current) => {
           const next =
             field === "quantity" || field === "price"
-              ? withoutError(current, `offer-${offerLetters[index]}-${field}`)
+              ? withoutError(current, `offer-${offerLetter(index)}-${field}`)
               : current;
           return withoutError(next, "offers");
         });
         if (refresh && hasCompared.current) schedule(next);
+      },
+      addOffer: () => {
+        const current = scenarioRef.current;
+        if (current.offers.length >= maxOfferCount) return;
+        const next = {
+          ...current,
+          offers: [...current.offers, { source: "", quantity: "", price: "" }],
+        };
+        publish(next);
+        setIsDemo(false);
+        setPathwayNotice(null);
+        setRequestError(null);
+        if (hasCompared.current) schedule(next);
+      },
+      removeOffer: (index) => {
+        const current = scenarioRef.current;
+        if (current.offers.length <= minOfferCount) return;
+        const next = {
+          ...current,
+          offers: current.offers.filter((_, offerIndex) => offerIndex !== index),
+        };
+        publish(next);
+        setIsDemo(false);
+        setPathwayNotice(null);
+        setRequestError(null);
+        setFieldErrors((current) => {
+          const cleared = { ...current };
+          delete cleared.offers;
+          for (const key of Object.keys(cleared)) {
+            if (key.startsWith("offer-")) delete cleared[key];
+          }
+          return cleared;
+        });
+        if (hasCompared.current) schedule(next);
       },
       compare: () => {
         if (timer.current) clearTimeout(timer.current);

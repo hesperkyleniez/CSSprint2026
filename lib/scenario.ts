@@ -28,6 +28,13 @@ export type OfferInput = {
 
 export type QuantityMeasure = "kg" | "other";
 
+export const minOfferCount = 2;
+export const maxOfferCount = 8;
+
+export function offerLetter(index: number) {
+  return String.fromCharCode(97 + index);
+}
+
 export type ScenarioInput = {
   pathwayId: PathwayId;
   quantityMeasure: QuantityMeasure;
@@ -36,7 +43,7 @@ export type ScenarioInput = {
   orderKgPerUnit: string;
   orderQuantity: string;
   buyerPrice: string;
-  offers: [OfferInput, OfferInput, OfferInput];
+  offers: OfferInput[];
   capacity: string;
   variableCost: string;
   targetContribution: string;
@@ -59,7 +66,7 @@ export const emptyScenario: ScenarioInput = {
   orderKgPerUnit: "",
   orderQuantity: "",
   buyerPrice: "",
-  offers: [emptyOffer(), emptyOffer(), emptyOffer()],
+  offers: [emptyOffer(), emptyOffer()],
   capacity: "",
   variableCost: "",
   targetContribution: "",

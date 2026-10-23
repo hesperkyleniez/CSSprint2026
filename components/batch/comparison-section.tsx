@@ -3,6 +3,7 @@
 import { SectionCard } from "@/components/ui/section-card";
 import { useScenario } from "@/components/batch/scenario-context";
 import type { OfferDecision } from "@/lib/optimize";
+import { offerLetter } from "@/lib/scenario";
 
 const decisionLabel: Record<OfferDecision["decision"], string> = {
   both: "Both plans",
@@ -19,12 +20,14 @@ function DecisionText({ decision }: { decision?: OfferDecision["decision"] }) {
 }
 
 export function ComparisonSection() {
-  const { result } = useScenario();
-  const offers = result?.offers ?? [
-    { id: "a", decision: undefined, reason: "—" },
-    { id: "b", decision: undefined, reason: "—" },
-    { id: "c", decision: undefined, reason: "—" },
-  ];
+  const { result, scenario } = useScenario();
+  const offers =
+    result?.offers ??
+    scenario.offers.map((_, index) => ({
+      id: offerLetter(index),
+      decision: undefined,
+      reason: "—",
+    }));
 
   return (
     <SectionCard id="offer-comparison" step={6} title="Offer comparison" collapseOnMobile>

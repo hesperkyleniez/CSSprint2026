@@ -18,13 +18,12 @@ Choose **Use simulated demo**. That loads a simulated fresh-fruit scenario:
 - 50 kg dried nut-in-shell order at ₱500/kg
 - Offer A, Simulated farmer: 100 kg at ₱80/kg
 - Offer B, Simulated trader: 60 kg at ₱20/kg
-- Offer C left blank
 - 200 kg drying capacity, ₱10/kg processing cost, a ₱3,000 target
 - Yields of 0.35 / 0.5 / 0.6 kg of dried nut-in-shell per kg of fresh pili
 
-Plan A and Plan B are the same mix: accept Offer A. Typical contribution is ₱16,000. Low-yield contribution is ₱8,500, which meets the ₱3,000 target, and the mix uses 100 kg of the 200 kg drying capacity. At low yield, that mix still meets the target if the fresh pili averages no more than ₱135/kg. Offer B alone covers 60% of the order at typical yield, so Talli does not recommend it. Accepting A and B uses 160 kg and a lower typical contribution (₱14,200), because sales stop at the 50 kg order.
+Plan A accepts Offer A. Typical contribution is ₱16,000, and the mix uses 100 kg of the 200 kg drying capacity. At low yield that offer makes 35 kg, short of the 50 kg order, so it is not the conservative plan. The part that can be sold still contributes ₱8,500, and the mix meets the target if fresh pili averages no more than ₱135/kg. Plan B accepts Offers A and B. At low yield that mix makes 56 kg, covers the order, and contributes ₱14,200. Its typical contribution is also ₱14,200, below Plan A, because sales stop at the order. It uses 160 kg. Offer B alone covers 60% of the order at typical yield, so Talli does not recommend it.
 
-After the demo comparison, type **136** in **Offer A asking price**. The browser sends the scenario to `POST /api/optimize` again. Plan A stays Offer A, because that mix still has the higher typical contribution. Plan B becomes Offers A and B, because Offer A alone no longer clears ₱3,000 when yield is low. Drop **drying capacity** below 100 kg and Plan A moves from Offer A to no feasible mix: Offer A no longer fits, and Offer B still does not cover the order. These figures are simulated sample inputs. The prototype does not save the scenario.
+After the demo comparison, set **drying capacity** to 150 kg. Plan A stays Offer A. Plan B drops, because Offers A and B need 160 kg and Offer A alone does not cover the order at low yield. Drop capacity below 100 kg and Plan A moves from Offer A to no feasible mix. These figures are simulated sample inputs. The prototype does not save the scenario.
 
 ## The problem
 
@@ -36,7 +35,7 @@ A 2025 study of the Sorsogon pili value chain reports that supply exceeds the da
 
 ## Project overview
 
-Talli is designed around one buying decision at a time. The user selects one pathway, then enters one buyer order, up to three offers of that same input, the available capacity for that pathway’s bottleneck, and low, typical, and high conversion assumptions. Quantities can be kilograms, or a named unit such as a sack or kaing, with the user’s own estimate of how many kilograms are in one unit. The server-side optimizer compares the offer combinations, displays output and contribution ranges with limiting constraints, calculates a walk-away price, and updates the plans when a compared price or capacity changes.
+Talli is designed around one buying decision at a time. The user selects one pathway, then enters one buyer order, at least two offers of that same input, the available capacity for that pathway’s bottleneck, and low, typical, and high conversion assumptions. Quantities can be kilograms, or a named unit such as a sack or kaing, with the user’s own estimate of how many kilograms are in one unit. The server-side optimizer compares the offer combinations, displays output and contribution ranges with limiting constraints, calculates a walk-away price, and updates the plans when a compared price or capacity changes.
 
 The central question is: **“Given these offers and my capacity, which combination should I accept, and what is the highest price I can afford to pay?”** Talli explains its recommendation; the processor makes the final decision. The prototype is a session-based simulator, not a records-management app: it does not require an account or save scenario data after the session.
 
@@ -51,13 +50,13 @@ The conversion assumption is specific to the selected pathway. The prototype has
 ## End-to-end system flow
 
 1. **Enter one buyer order.** Choose the pathway and whether quantities are kilograms or a named unit. Enter the order quantity and selling price. A loaded demo is labeled **Sample order**; anything else is **Your order**.
-2. **Enter up to three supplier offers.** For each offer, enter a source, quantity, and asking price. Leave a row blank when there are fewer than three. Every offer uses the selected pathway, so yield and capacity stay comparable. Each offer is accepted or declined as a whole; partial-quantity negotiation is out of scope. Offers are scenario inputs, not verified transactions.
+2. **Enter supplier offers.** Two cards are on the form. **Add more** adds another, up to eight, and **Remove** deletes one as long as two remain. For each offer, enter a source, quantity, and asking price. A blank card is left out of the plan. Every offer uses the selected pathway, so yield and capacity stay comparable. Each offer is accepted or declined as a whole; partial-quantity negotiation is out of scope. Offers are scenario inputs, not verified transactions.
 3. **Set capacity, costs, and target.** Enter the available capacity for the pathway’s bottleneck, the variable processing cost, and the least the processor wants to clear if yield comes out low. These are editable scenario values, not claimed Sorsogon industry benchmarks.
 4. **Set pathway-specific conversion uncertainty.** Enter low, typical, and high kilograms of output from 1 kg of input. Yields must be greater than 0 and at most 1. At cold start, these values are typed in or loaded from the simulated demo. The app does not claim they are locally calibrated.
 5. **Run the server-side optimizer.** The browser sends the scenario to a Next.js API route. The route validates the inputs, converts named units to kilograms, and evaluates every combination of the entered offers, including declining all of them.
 6. **Reveal two plans.** **Plan A** is the capacity-feasible mix that covers the full order at typical yield and has the highest positive typical contribution. **Plan B** must cover the full order at low yield, clear the target, and stay above ₱0. If Plan A already does that, both plans are the same mix. If no such mix exists, the app says so instead of inventing a safe plan. Declining every offer is the ₱0 baseline. Loss-making mixes and partial fulfillment are not recommended.
 7. **Show why.** The result shows selected offers, capacity used, low/typical/high output and contribution, order coverage, unmatched output, and a low-yield walk-away price. Revenue is counted only for output matched to the entered order; extra output is unmatched, not assumed sold. On a phone, the longer metrics, rationale, offer comparison, and what-if fields open from **See details**.
-8. **Try another price or capacity.** After a comparison, type a new Offer A price or capacity. The browser resubmits the scenario, and the plans, contribution range, and reasons update. In the demo, ₱136 on Offer A keeps Plan A on Offer A and moves Plan B to Offers A and B.
+8. **Try another price or capacity.** After a comparison, type a new Offer A price or capacity. The browser resubmits the scenario, and the plans, contribution range, and reasons update. In the demo, a drying capacity of 150 kg drops Plan B, and a capacity below 100 kg leaves no feasible Plan A.
 9. **End the session.** The user can reset or try another scenario. The prototype does not save offers, orders, or results after the session.
 
 ## Core calculations and upgrades
@@ -101,7 +100,7 @@ After a comparison, Offer A’s asking price and the bottleneck capacity are edi
 
 ### Included in the prototype
 
-- One session-based buying scenario with one buyer order, up to three supplier offers, and one capacity constraint.
+- One session-based buying scenario with one buyer order, two to eight supplier offers, and one capacity constraint.
 - One selected pathway per scenario. The two pathways are fresh fruit with pulp → dried nut-in-shell, and dried nut-in-shell → kernel.
 - Quantities in kilograms, or in a named unit with the user’s kilogram-per-unit estimates. Talli converts those counts before it compares.
 - User-entered low, typical, and high yield assumptions, prices, and costs.
@@ -139,7 +138,7 @@ After a comparison, Offer A’s asking price and the bottleneck capacity are edi
 
 ## Two-day build priority
 
-1. One responsive flow for one buyer order, up to three offers of the same pathway, one capacity constraint, and editable low/typical/high conversion assumptions. Phones step through the form; wide screens keep it on one page.
+1. One responsive flow for one buyer order, two or more offers of the same pathway, one capacity constraint, and editable low/typical/high conversion assumptions. Phones step through the form; wide screens keep it on one page.
 2. A Next.js API route that validates the scenario, converts named units to kilograms, and compares every all-or-nothing combination, including declining all offers. Output uses the pathway’s conversion assumptions, capacity is a hard limit, sales stop at the entered order, and the response includes contribution ranges, walk-away prices, and reasons mixes fail.
 3. Plan A is the highest positive typical contribution among mixes that cover the full order. Plan B covers the full order at low yield and meets the target, when such a mix exists.
 4. After a comparison, Offer A’s price and the capacity can be typed in again. The plans, contribution range, and explanation update.

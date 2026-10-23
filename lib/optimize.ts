@@ -1,7 +1,14 @@
-import { getPathway, pathways, type Pathway, type PathwayId } from "./scenario";
+import {
+  getPathway,
+  maxOfferCount,
+  minOfferCount,
+  offerLetter,
+  pathways,
+  type Pathway,
+  type PathwayId,
+} from "./scenario";
 
-export const offerIds = ["a", "b", "c"] as const;
-export type OfferId = (typeof offerIds)[number];
+export type OfferId = string;
 
 export type YieldKey = "low" | "typical" | "high";
 
@@ -561,7 +568,7 @@ function offerDecisions(
   const acceptedA = new Set(planA?.offers.map((offer) => offer.id) ?? []);
   const acceptedB = new Set(planB?.offers.map((offer) => offer.id) ?? []);
   return scenario.offers.map((offer, index) => {
-    const id = offerIds[index];
+    const id = offerLetter(index);
     if (!offer) {
       return {
         id,
@@ -666,13 +673,16 @@ function readOffers(
   input: unknown,
   fieldErrors: Record<string, string>,
 ): Array<ParsedOffer | null> | null {
-  if (!Array.isArray(input) || input.length !== 3) {
-    fieldErrors.offers = "Send exactly three offer slots.";
+  if (!Array.isArray(input) || input.length < minOfferCount || input.length > maxOfferCount) {
+    fieldErrors.offers =
+      Array.isArray(input) && input.length > maxOfferCount
+        ? "Eight offers is the limit."
+        : "Keep at least two offer slots.";
     return null;
   }
 
   return input.map((offer, index) => {
-    const id = offerIds[index];
+    const id = offerLetter(index);
     if (!isRecord(offer)) {
       fieldErrors[`offer-${id}-quantity`] = "Offer must include quantity and asking price.";
       return null;
