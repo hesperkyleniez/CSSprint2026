@@ -5,14 +5,16 @@ import { useScenario } from "@/components/batch/scenario-context";
 import type { OfferDecision } from "@/lib/optimize";
 
 const decisionLabel: Record<OfferDecision["decision"], string> = {
-  accepted: "Accepted",
+  both: "Both plans",
+  plan_a: "Plan A only",
+  plan_b: "Plan B only",
   declined: "Declined",
   not_entered: "Not entered",
 };
 
 function DecisionText({ decision }: { decision?: OfferDecision["decision"] }) {
   if (!decision) return <span className="text-muted">—</span>;
-  const tone = decision === "accepted" ? "font-medium text-brand" : "text-foreground";
+  const tone = ["both", "plan_a", "plan_b"].includes(decision) ? "font-medium text-brand" : "text-foreground";
   return <span className={tone}>{decisionLabel[decision]}</span>;
 }
 

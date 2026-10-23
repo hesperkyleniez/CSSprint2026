@@ -13,7 +13,7 @@ const offers = [
 ] as const;
 
 export function OffersSection() {
-  const { scenario, pathway, setOffer, fieldError } = useScenario();
+  const { scenario, pathway, setOffer, fieldError, isDemo } = useScenario();
 
   return (
     <SectionCard
@@ -33,7 +33,7 @@ export function OffersSection() {
           <Panel key={offer.id}>
             <div className="mb-3 flex items-center gap-2">
               <h3 className="text-sm font-semibold text-foreground">{offer.title}</h3>
-              <Badge>Simulated</Badge>
+              <Badge>{isDemo ? "SIMULATED" : "Scenario input"}</Badge>
             </div>
             <div className="grid items-end gap-3 lg:grid-cols-3">
               <TextField

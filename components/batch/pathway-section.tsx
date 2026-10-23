@@ -11,7 +11,7 @@ import {
 import { useScenario } from "@/components/batch/scenario-context";
 
 export function PathwaySection() {
-  const { scenario, pathway, setPathwayId, setField, fieldError } = useScenario();
+  const { scenario, pathway, setPathwayId, setField, fieldError, pathwayNotice, isDemo } = useScenario();
 
   return (
     <SectionCard
@@ -33,13 +33,18 @@ export function PathwaySection() {
         ))}
       </SelectField>
       <div className="grid gap-4 sm:grid-cols-2">
-        <ReadOnlyField id="order-status" label="Order status" value="Simulated" />
+        <ReadOnlyField id="order-status" label="Order status" value={isDemo ? "Simulated sample order" : "Manual scenario; unverified"} />
         <ReadOnlyField
           id="buyer-needs"
           label="Buyer needs"
           value={buyerNeedsLabel(pathway)}
         />
       </div>
+      {pathwayNotice ? (
+        <p className="rounded-lg border border-kernel/30 bg-inset px-3 py-2 text-sm leading-6 text-foreground" role="status">
+          {pathwayNotice}
+        </p>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField
           id="order-quantity"

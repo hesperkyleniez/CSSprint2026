@@ -41,7 +41,10 @@ type ScenarioContextValue = {
   pathway: Pathway;
   result: OptimizeSuccess | null;
   loading: boolean;
+  isDirty: boolean;
+  isDemo: boolean;
   requestError: string | null;
+  pathwayNotice: string | null;
   fieldError: (id: string) => string | undefined;
   setPathwayId: (id: PathwayId) => void;
   setField: (field: ScenarioField, value: string, refresh?: boolean) => void;
@@ -53,6 +56,7 @@ type ScenarioContextValue = {
   ) => void;
   compare: () => void;
   loadDemo: () => void;
+  resetScenario: () => void;
 };
 
 const ScenarioContext = createContext<ScenarioContextValue | null>(null);
@@ -69,7 +73,10 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
   const [result, setResult] = useState<OptimizeSuccess | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [pathwayNotice, setPathwayNotice] = useState<string | null>(null);
   const scenarioRef = useRef(scenario);
   const requestId = useRef(0);
   const hasCompared = useRef(false);
@@ -83,6 +90,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
   const runCompare = useCallback(async (body: ScenarioInput, scroll: boolean) => {
     const id = ++requestId.current;
     setLoading(true);
+    setResult(null);
     setRequestError(null);
     try {
       const response = await fetch("/api/optimize", {
@@ -95,6 +103,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
       if (!data.ok) {
         setFieldErrors(data.fieldErrors);
         setResult(null);
+        setIsDirty(false);
         const first = Object.keys(data.fieldErrors)[0];
         if (first) {
           document.getElementById(first)?.scrollIntoView({
@@ -106,6 +115,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
       }
       setFieldErrors({});
       setResult(data);
+      setIsDirty(false);
       if (scroll) {
         document.getElementById("recommended-plans")?.scrollIntoView({
           behavior: "smooth",
@@ -115,6 +125,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
     } catch {
       if (id !== requestId.current) return;
       setRequestError("The comparison could not be reached. Try again.");
+      setIsDirty(false);
     } finally {
       if (id === requestId.current) setLoading(false);
     }
@@ -123,6 +134,10 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
   const schedule = useCallback(
     (next: ScenarioInput) => {
       if (timer.current) clearTimeout(timer.current);
+      requestId.current += 1;
+      setResult(null);
+      setLoading(false);
+      setIsDirty(true);
       timer.current = setTimeout(() => {
         void runCompare(next, false);
       }, 280);
@@ -136,36 +151,51 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
       pathway: getPathway(scenario.pathwayId),
       result,
       loading,
+      isDirty,
+      isDemo,
       requestError,
+      pathwayNotice,
       fieldError: (id) => fieldErrors[id],
       setPathwayId: (id) => {
         if (timer.current) clearTimeout(timer.current);
+        requestId.current += 1;
+        setLoading(false);
         const current = scenarioRef.current;
+        const nextPathway = getPathway(id);
         publish({
           ...current,
           pathwayId: id,
           orderQuantity: "",
+          buyerPrice: "",
           offers: current.offers.map((offer) => ({
             ...offer,
             quantity: "",
+            price: "",
           })) as ScenarioInput["offers"],
           capacity: "",
+          variableCost: "",
           yieldLow: "",
           yieldTypical: "",
           yieldHigh: "",
         });
         setResult(null);
+        setIsDirty(false);
         setFieldErrors({});
         setRequestError(null);
+        setPathwayNotice(`Pathway changed to ${nextPathway.label}. Route-dependent order, offer quantities and prices, capacity, processing cost, and yield assumptions were cleared. Review and re-enter them before comparing.`);
+        setIsDemo(false);
         hasCompared.current = false;
       },
-      setField: (field, nextValue, refresh = false) => {
+      setField: (field, nextValue, refresh = true) => {
         const next = { ...scenarioRef.current, [field]: nextValue };
         publish(next);
+        setIsDemo(false);
+        setPathwayNotice(null);
+        setRequestError(null);
         setFieldErrors((current) => withoutError(current, fieldIds[field]));
         if (refresh && hasCompared.current) schedule(next);
       },
-      setOffer: (index, field, nextValue, refresh = false) => {
+      setOffer: (index, field, nextValue, refresh = true) => {
         const next = {
           ...scenarioRef.current,
           offers: scenarioRef.current.offers.map((offer, offerIndex) =>
@@ -173,6 +203,9 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
           ) as ScenarioInput["offers"],
         };
         publish(next);
+        setIsDemo(false);
+        setPathwayNotice(null);
+        setRequestError(null);
         setFieldErrors((current) => {
           const next =
             field === "quantity" || field === "price"
@@ -192,12 +225,28 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
         hasCompared.current = true;
         const next = demoScenario();
         publish(next);
+        setIsDemo(true);
+        setPathwayNotice(null);
+        setIsDirty(false);
         setFieldErrors({});
         setRequestError(null);
         void runCompare(next, true);
       },
+      resetScenario: () => {
+        if (timer.current) clearTimeout(timer.current);
+        requestId.current += 1;
+        hasCompared.current = false;
+        publish(emptyScenario);
+        setIsDemo(false);
+        setResult(null);
+        setIsDirty(false);
+        setLoading(false);
+        setFieldErrors({});
+        setRequestError(null);
+        setPathwayNotice(null);
+      },
     };
-  }, [fieldErrors, loading, publish, requestError, result, runCompare, scenario, schedule]);
+  }, [fieldErrors, isDirty, isDemo, loading, pathwayNotice, publish, requestError, result, runCompare, scenario, schedule]);
 
   return (
     <ScenarioContext.Provider value={value}>{children}</ScenarioContext.Provider>

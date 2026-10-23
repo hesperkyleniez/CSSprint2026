@@ -1,6 +1,7 @@
 "use client";
 
 import { Metric } from "@/components/ui/metric";
+import { Badge } from "@/components/ui/badge";
 import { SectionCard } from "@/components/ui/section-card";
 import { useScenario } from "@/components/batch/scenario-context";
 import { kilograms, peso, triple } from "@/lib/format";
@@ -8,6 +9,11 @@ import type { PlanResult } from "@/lib/optimize";
 import type { Pathway } from "@/lib/scenario";
 
 function planRows(plan: PlanResult, pathway: Pathway) {
+  const supplierPrices = plan.supplierWalkAwayPrices.length
+    ? plan.supplierWalkAwayPrices
+        .map((item) => `${item.id.toUpperCase()}${item.source ? ` (${item.source})` : ""}: ${item.pricePerKg === null ? "no nonnegative price meets the target" : `${peso(item.pricePerKg)}/kg`}`)
+        .join(" · ")
+    : "No offer selected";
   return [
     { label: "Selected offers", value: plan.selectedOffers },
     {
@@ -24,6 +30,10 @@ function planRows(plan: PlanResult, pathway: Pathway) {
       value: `${kilograms(plan.orderCoverageKg)}, ${plan.orderCoveragePct}%`,
     },
     {
+      label: "Full order covered?",
+      value: `Typical: ${plan.meetsTypicalOrder ? "Yes" : "No"} · Low yield: ${plan.meetsLowYieldOrder ? "Yes" : "No"}`,
+    },
+    {
       label: "Unmatched output (kg)",
       value: kilograms(plan.unmatchedOutputKg),
     },
@@ -33,8 +43,13 @@ function planRows(plan: PlanResult, pathway: Pathway) {
       value: triple(plan.contribution, peso),
     },
     {
-      label: `Walk-away price per kg (₱/kg ${pathway.inputShort})`,
-      value: peso(plan.walkAwayPricePerKg),
+      label: `Blended max purchase price (low-yield ₱/kg ${pathway.inputShort})`,
+      value: plan.walkAwayPricePerKg === null ? "No nonnegative price meets the target" : peso(plan.walkAwayPricePerKg),
+    },
+    {
+      label: "Supplier-specific counteroffer ceilings",
+      note: plan.walkAwayBasis,
+      value: supplierPrices,
     },
   ];
 }
@@ -72,7 +87,7 @@ function PlanCard({
 }
 
 export function PlansSection() {
-  const { pathway, result, loading } = useScenario();
+  const { pathway, result, loading, isDirty, isDemo } = useScenario();
   const placeholders = [
     { label: "Selected offers" },
     { label: `Capacity used (kg ${pathway.inputShort} input)` },
@@ -81,16 +96,25 @@ export function PlansSection() {
       note: "Low / Typical / High",
     },
     { label: "Order coverage (kg, %)" },
+    { label: "Full order covered?" },
     { label: "Unmatched output (kg)" },
     { label: "Contribution range (₱)", note: "Low / Typical / High" },
-    { label: `Walk-away price per kg (₱/kg ${pathway.inputShort})` },
+    { label: `Blended max purchase price (low-yield ₱/kg ${pathway.inputShort})` },
+    { label: "Supplier-specific counteroffer ceilings" },
   ];
 
   return (
     <SectionCard id="recommended-plans" step={4} title="Recommended buying plan">
-      {loading ? (
+      <p className="rounded-lg border border-line bg-inset px-3 py-2 text-sm leading-6 text-muted">
+        Recommendations require the full entered order (Plan A at typical yield; Plan B at low yield). Loss-making purchases are excluded; declining all offers is the ₱0 baseline. Contribution subtracts only entered raw-material and variable-processing costs, so it is not net profit.
+      </p>
+      <p className="text-xs leading-5 text-muted">
+        Tie-breaks favor stronger low-yield contribution, then less input, lower combined costs, fewer offers, and offer order A–C.
+      </p>
+      {isDemo && result ? <Badge>SIMULATED RESULTS</Badge> : null}
+      {loading || isDirty ? (
         <p className="text-sm text-muted" aria-live="polite">
-          Updating the comparison…
+          {loading ? "Updating the comparison…" : "Inputs changed; refreshing the comparison…"}
         </p>
       ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -102,21 +126,21 @@ export function PlansSection() {
           />
         ) : (
           <PlanCard
-            title="Plan A — Highest typical contribution"
+            title={result ? "Plan A — No qualifying full-order plan" : "Plan A — Highest typical contribution"}
             tone="brand"
             rows={result ? undefined : placeholders}
-            note={result ? result.planBReason : undefined}
+            note={result ? result.planAReason : undefined}
           />
         )}
         {result?.planB ? (
           <PlanCard
-            title="Plan B — Meets target under low yield"
+            title={result.samePlan ? "Plan B — Same combination as Plan A" : "Plan B — Meets target under low yield"}
             tone="kernel"
             rows={planRows(result.planB, pathway)}
           />
         ) : (
           <PlanCard
-            title="Plan B — Meets target under low yield"
+            title="Plan B — No qualifying low-yield plan"
             tone="kernel"
             rows={result ? undefined : placeholders}
             note={result ? result.planBReason : undefined}

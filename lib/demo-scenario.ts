@@ -14,7 +14,7 @@ export function demoScenario(): ScenarioInput {
     capacity: "200",
     variableCost: "10",
     targetContribution: "3000",
-    yieldLow: "0.2",
+    yieldLow: "0.35",
     yieldTypical: "0.5",
     yieldHigh: "0.6",
   };

@@ -25,7 +25,13 @@ export type PlanResult = {
   orderCoveragePct: number;
   unmatchedOutputKg: number;
   contribution: Record<YieldKey, number>;
-  walkAwayPricePerKg: number;
+  walkAwayPricePerKg: number | null;
+  walkAwayBasis: string;
+  supplierWalkAwayPrices: Array<{ id: OfferId; source: string; pricePerKg: number | null }>;
+  meetsTypicalOrder: boolean;
+  meetsLowYieldOrder: boolean;
+  meetsLowYieldTarget: boolean;
+  noPurchase: boolean;
   scenarios: Record<YieldKey, YieldMath>;
   reason: string;
 };
@@ -38,6 +44,9 @@ export type CombinationResult = {
   typicalContribution: number;
   lowContribution: number;
   meetsLowYieldTarget: boolean;
+  meetsTypicalOrder: boolean;
+  meetsLowYieldOrder: boolean;
+  selectedBy: Array<"Plan A" | "Plan B">;
   ruledOutReason: string | null;
 };
 
@@ -45,7 +54,7 @@ export type OfferDecision = {
   id: OfferId;
   source: string;
   entered: boolean;
-  decision: "accepted" | "declined" | "not_entered";
+  decision: "both" | "plan_a" | "plan_b" | "declined" | "not_entered";
   reason: string;
 };
 
@@ -53,8 +62,11 @@ export type OptimizeSuccess = {
   ok: true;
   pathway: Pathway;
   planA: PlanResult | null;
+  planAReason: string;
   planB: PlanResult | null;
   planBReason: string;
+  samePlan: boolean;
+  noPurchaseContribution: number;
   offers: OfferDecision[];
   combinations: CombinationResult[];
 };
@@ -171,11 +183,6 @@ function parseScenario(
   );
 
   const offers = readOffers(input.offers, fieldErrors);
-  const entered = offers?.filter((offer) => offer !== null) ?? [];
-  if (offers && entered.length === 0 && !Object.keys(fieldErrors).some((key) => key.startsWith("offer-"))) {
-    fieldErrors.offers = "Enter a quantity and asking price for at least one offer.";
-  }
-
   if (
     yieldLow !== null &&
     yieldTypical !== null &&
@@ -184,6 +191,22 @@ function parseScenario(
   ) {
     fieldErrors[fieldIds.yieldTypical] =
       "Keep low yield at or below typical, and typical at or below high.";
+  }
+
+  if (orderQuantityKg !== null && orderQuantityKg <= 0) {
+    fieldErrors[fieldIds.orderQuantity] = "Order quantity must be greater than zero.";
+  }
+  if (capacityKg !== null && capacityKg <= 0) {
+    fieldErrors[fieldIds.capacity] = "Capacity must be greater than zero.";
+  }
+  for (const [value, field, label] of [
+    [yieldLow, fieldIds.yieldLow, "Low"],
+    [yieldTypical, fieldIds.yieldTypical, "Typical"],
+    [yieldHigh, fieldIds.yieldHigh, "High"],
+  ] as const) {
+    if (value !== null && (value <= 0 || value > 1)) {
+      fieldErrors[field] = `${label} yield must be greater than 0 and no more than 1.0 for these weight-based pathways.`;
+    }
   }
 
   if (Object.keys(fieldErrors).length > 0 || !offers || !isPathwayId(pathwayId)) {
@@ -228,23 +251,27 @@ function evaluate(scenario: ParsedScenario): OptimizeSuccess {
     evaluateCombination(scenario, offers),
   );
   const feasible = combinations.filter((combination) => combination.feasible);
-  const planARaw = bestBy(feasible, (combination) => combination.scenarios.typical.contribution);
+  const planARaw = bestBy(
+    feasible.filter(
+      (combination) =>
+        meetsOrder(scenario, combination, "typical") &&
+        combination.scenarios.typical.contribution > 0,
+    ),
+    (combination) => combination.scenarios.typical.contribution,
+  );
 
   const lowTargetHits = feasible.filter(
     (combination) =>
-      combination.scenarios.low.contribution + 0.001 >= scenario.targetContribution,
+      meetsOrder(scenario, combination, "low") &&
+      combination.scenarios.low.contribution + 0.001 >= scenario.targetContribution &&
+      combination.scenarios.low.contribution > 0,
   );
   const planAMeetsLowTarget =
     planARaw !== null &&
     lowTargetHits.some((combination) => sameOffers(combination, planARaw));
   const planBRaw = planAMeetsLowTarget
-    ? null
-    : bestBy(
-        lowTargetHits.filter(
-          (combination) => planARaw === null || !sameOffers(combination, planARaw),
-        ),
-        (combination) => combination.scenarios.typical.contribution,
-      );
+    ? planARaw
+    : bestBy(lowTargetHits, (combination) => combination.scenarios.typical.contribution);
 
   const planA = planARaw ? toPlan(scenario, planARaw, planReason(scenario, planARaw, "a", planARaw)) : null;
   const planB = planBRaw
@@ -255,9 +282,12 @@ function evaluate(scenario: ParsedScenario): OptimizeSuccess {
     ok: true,
     pathway: scenario.pathway,
     planA,
+    planAReason: planA?.reason ?? planAFallback(scenario, planARaw, feasible),
     planB,
-    planBReason: planB?.reason ?? planBFallback(scenario, planARaw, lowTargetHits, feasible),
-    offers: offerDecisions(scenario, planARaw),
+    planBReason: planB?.reason ?? planBFallback(scenario, feasible),
+    samePlan: planAMeetsLowTarget,
+    noPurchaseContribution: 0,
+    offers: offerDecisions(scenario, planARaw, planBRaw, combinations),
     combinations: combinations.map((combination) =>
       toCombinationView(scenario, combination, planARaw, planBRaw),
     ),
@@ -285,6 +315,14 @@ function evaluateCombination(
   return { offers, inputKg, rawMaterialCost, processingCost, feasible, scenarios };
 }
 
+function meetsOrder(
+  scenario: ParsedScenario,
+  combination: RawCombination,
+  yieldKey: YieldKey,
+) {
+  return combination.scenarios[yieldKey].orderCoverageKg + 1e-9 >= scenario.orderQuantityKg;
+}
+
 function yieldMath(
   scenario: ParsedScenario,
   inputKg: number,
@@ -303,13 +341,13 @@ function yieldMath(
     scenario.orderQuantityKg > 0 ? (orderCoverageKg / scenario.orderQuantityKg) * 100 : 0;
 
   return {
-    outputKg: round(outputKg, 3),
-    orderCoverageKg: round(orderCoverageKg, 3),
-    orderCoveragePct: round(orderCoveragePct, 1),
-    unmatchedOutputKg: round(unmatchedOutputKg, 3),
-    sales: round(sales, 2),
-    contribution: round(contribution, 2),
-    walkAwayPricePerKg: round(walkAwayPricePerKg, 2),
+    outputKg,
+    orderCoverageKg,
+    orderCoveragePct,
+    unmatchedOutputKg,
+    sales,
+    contribution,
+    walkAwayPricePerKg,
   };
 }
 
@@ -319,6 +357,18 @@ function toPlan(
   reason: string,
 ): PlanResult {
   const typical = combination.scenarios.typical;
+  const low = combination.scenarios.low;
+  const supplierWalkAwayPrices = combination.offers.map((offer) => {
+    const otherOfferCost = combination.rawMaterialCost - offer.quantityKg * offer.pricePerKg;
+    const ceiling =
+      (low.sales - combination.processingCost - scenario.targetContribution - otherOfferCost) /
+      offer.quantityKg;
+    return {
+      id: offer.id,
+      source: offer.source,
+      pricePerKg: ceiling >= 0 ? round(ceiling, 2) : null,
+    };
+  });
   return {
     offers: combination.offers.map((offer) => offer.id),
     selectedOffers: offerList(combination.offers.map((offer) => offer.id)),
@@ -337,7 +387,21 @@ function toPlan(
       typical: typical.contribution,
       high: combination.scenarios.high.contribution,
     },
-    walkAwayPricePerKg: typical.walkAwayPricePerKg,
+    walkAwayPricePerKg:
+      combination.inputKg > 0 &&
+      low.sales - combination.processingCost - scenario.targetContribution >= 0
+        ? round(
+            (low.sales - combination.processingCost - scenario.targetContribution) /
+              combination.inputKg,
+            2,
+          )
+        : null,
+    walkAwayBasis: `Based on low-yield output with sales capped at the entered order, entered processing cost, and your ${peso(scenario.targetContribution)} target. Each supplier ceiling holds the other selected offers at their entered prices.`,
+    supplierWalkAwayPrices,
+    meetsTypicalOrder: meetsOrder(scenario, combination, "typical"),
+    meetsLowYieldOrder: meetsOrder(scenario, combination, "low"),
+    meetsLowYieldTarget: low.contribution + 0.001 >= scenario.targetContribution,
+    noPurchase: combination.offers.length === 0,
     scenarios: combination.scenarios,
     reason,
   };
@@ -351,17 +415,23 @@ function toCombinationView(
 ): CombinationResult {
   const meetsLowYieldTarget =
     combination.scenarios.low.contribution + 0.001 >= scenario.targetContribution;
-  const isRecommended =
-    (planA !== null && sameOffers(combination, planA)) ||
-    (planB !== null && sameOffers(combination, planB));
+  const selectedBy: Array<"Plan A" | "Plan B"> = [];
+  if (planA && sameOffers(combination, planA)) selectedBy.push("Plan A");
+  if (planB && sameOffers(combination, planB)) selectedBy.push("Plan B");
+  const isRecommended = selectedBy.length > 0;
   return {
     offers: combination.offers.map((offer) => offer.id),
-    label: offerList(combination.offers.map((offer) => offer.id)),
+    label: combination.offers.length
+      ? offerList(combination.offers.map((offer) => offer.id))
+      : "Decline all (no purchase)",
     feasible: combination.feasible,
     capacityUsedKg: round(combination.inputKg, 3),
     typicalContribution: combination.scenarios.typical.contribution,
     lowContribution: combination.scenarios.low.contribution,
     meetsLowYieldTarget: combination.feasible && meetsLowYieldTarget,
+    meetsTypicalOrder: combination.feasible && meetsOrder(scenario, combination, "typical"),
+    meetsLowYieldOrder: combination.feasible && meetsOrder(scenario, combination, "low"),
+    selectedBy,
     ruledOutReason: isRecommended ? null : ruledOutReason(scenario, combination, planA),
   };
 }
@@ -384,27 +454,29 @@ function planReason(
   const meets = low + 0.001 >= scenario.targetContribution;
 
   if (which === "a") {
-    return `Highest typical contribution among capacity-feasible mixes: ${peso(typical)}. Uses ${used} kg of the ${capacity} kg ${step} capacity (${usedPct}%). Low-yield contribution is ${peso(low)}, which ${meets ? "meets" : "misses"} the ${peso(scenario.targetContribution)} target.`;
+    return `Highest positive typical contribution among mixes that cover the full buyer order: ${peso(typical)}. Uses ${used} kg of the ${capacity} kg ${step} capacity (${usedPct}%). Low-yield contribution is ${peso(low)}, which ${meets ? "meets" : "misses"} the ${peso(scenario.targetContribution)} target.`;
   }
 
   const planATypical = planA ? planA.scenarios.typical.contribution : typical;
+  if (planA && sameOffers(combination, planA)) {
+    return `This same combination qualifies for both objectives: it covers the full order at low yield and meets the ${peso(scenario.targetContribution)} low-yield target (${peso(low)}). It is shown as both Plan A and Plan B.`;
+  }
   return `Meets the ${peso(scenario.targetContribution)} target at low yield with ${peso(low)}. Typical contribution is ${peso(typical)}, compared with ${peso(planATypical)} for Plan A. Uses ${used} kg of the ${capacity} kg ${step} capacity (${usedPct}%).`;
 }
 
 function planBFallback(
   scenario: ParsedScenario,
-  planA: RawCombination | null,
-  lowTargetHits: RawCombination[],
   feasible: RawCombination[],
 ): string {
-  if (
-    planA &&
-    lowTargetHits.some((combination) => sameOffers(combination, planA))
-  ) {
-    return `Plan A already meets the ${peso(scenario.targetContribution)} target under low yield (${peso(planA.scenarios.low.contribution)}), so there is no separate conservative plan.`;
+  const buyingFeasible = feasible.filter((combination) => combination.offers.length > 0);
+  if (buyingFeasible.length === 0) {
+    return scenario.offers.some(Boolean)
+      ? `No entered offer combination fits the ${kgText(scenario.capacityKg)} kg ${scenario.pathway.capacityStep.toLowerCase()} capacity. Declining all offers is shown as the ₱0 no-purchase baseline.`
+      : "No supplier offers were entered, so there is no buying plan to test. Declining all offers remains the ₱0 baseline.";
   }
 
-  const bestLow = feasible.reduce<number | null>((best, combination) => {
+  const fullOrderLow = buyingFeasible.filter((combination) => meetsOrder(scenario, combination, "low"));
+  const bestLow = (fullOrderLow.length ? fullOrderLow : buyingFeasible).reduce<number | null>((best, combination) => {
     const contribution = combination.scenarios.low.contribution;
     return best === null || contribution > best ? contribution : best;
   }, null);
@@ -413,7 +485,30 @@ function planBFallback(
     return `No mix fits the ${kgText(scenario.capacityKg)} kg ${scenario.pathway.capacityStep.toLowerCase()} capacity, so there is no low-yield plan.`;
   }
 
-  return `No capacity-feasible mix meets the ${peso(scenario.targetContribution)} target under low yield. The best low-yield contribution is ${peso(bestLow)}.`;
+  return fullOrderLow.length
+    ? `No mix that covers the full order at low yield meets the ${peso(scenario.targetContribution)} target. The best low-yield contribution among full-order mixes is ${peso(bestLow)}. Declining all offers remains the ₱0 baseline.`
+    : `No capacity-feasible mix covers the full order at low yield. The highest-contribution available low-yield mix contributes ${peso(bestLow)} but covers only ${round(Math.max(...buyingFeasible.map((combination) => combination.scenarios.low.orderCoveragePct)), 1)}% of the order; the app does not recommend it as order fulfillment. Declining all offers remains the ₱0 baseline.`;
+}
+
+function planAFallback(
+  scenario: ParsedScenario,
+  planA: RawCombination | null,
+  feasible: RawCombination[],
+) {
+  if (planA) return planReason(scenario, planA, "a", planA);
+  const purchaseOptions = feasible.filter((combination) => combination.offers.length > 0);
+  if (!purchaseOptions.length) {
+    return scenario.offers.some(Boolean)
+      ? `No entered offer combination fits the ${kgText(scenario.capacityKg)} kg ${scenario.pathway.capacityStep.toLowerCase()} capacity. Declining all offers is the ₱0 baseline.`
+      : "No supplier offers were entered. Declining all offers is available as the ₱0 no-purchase baseline.";
+  }
+  const complete = purchaseOptions.filter((combination) => meetsOrder(scenario, combination, "typical"));
+  if (!complete.length) {
+    const best = bestBy(purchaseOptions, (combination) => combination.scenarios.typical.contribution);
+    const coverage = best?.scenarios.typical.orderCoveragePct ?? 0;
+    return `No capacity-feasible offer mix covers the full order at typical yield. The highest-contribution available mix covers ${round(coverage, 1)}%; partial fulfillment is not recommended. Declining all offers is the ₱0 baseline.`;
+  }
+  return "No full-order mix has positive typical contribution. The app recommends declining all offers rather than taking a loss.";
 }
 
 function ruledOutReason(
@@ -428,6 +523,17 @@ function ruledOutReason(
   const typical = combination.scenarios.typical.contribution;
   const low = combination.scenarios.low.contribution;
   const meets = low + 0.001 >= scenario.targetContribution;
+  const typicalComplete = meetsOrder(scenario, combination, "typical");
+  const lowComplete = meetsOrder(scenario, combination, "low");
+  if (combination.offers.length === 0) {
+    return "No-purchase baseline: avoids buying cost, but fulfills none of the buyer order.";
+  }
+  if (!typicalComplete) {
+    return `Does not cover the full order at typical yield (${peso(combination.scenarios.typical.contribution)} contribution; ${round(combination.scenarios.typical.orderCoveragePct, 1)}% coverage). The simulator does not recommend partial fulfillment.`;
+  }
+  if (!lowComplete) {
+    return `Covers the order at typical yield but not at low yield (${round(combination.scenarios.low.orderCoveragePct, 1)}% low-yield coverage), so it cannot qualify as the conservative plan.`;
+  }
   const compared = planA
     ? ` Ruled out by contribution: typical contribution is ${peso(typical)}, below Plan A at ${peso(planA.scenarios.typical.contribution)}.`
     : "";
@@ -440,8 +546,11 @@ function ruledOutReason(
 function offerDecisions(
   scenario: ParsedScenario,
   planA: RawCombination | null,
+  planB: RawCombination | null,
+  combinations: RawCombination[],
 ): OfferDecision[] {
-  const accepted = new Set(planA?.offers.map((offer) => offer.id) ?? []);
+  const acceptedA = new Set(planA?.offers.map((offer) => offer.id) ?? []);
+  const acceptedB = new Set(planB?.offers.map((offer) => offer.id) ?? []);
   return scenario.offers.map((offer, index) => {
     const id = offerIds[index];
     if (!offer) {
@@ -454,15 +563,17 @@ function offerDecisions(
       };
     }
 
-    if (accepted.has(id)) {
+    if (acceptedA.has(id) && acceptedB.has(id)) {
       return {
         id,
         source: offer.source,
         entered: true,
-        decision: "accepted",
-        reason: "Accepted in Plan A, the highest typical-contribution mix.",
+        decision: "both",
+        reason: "Selected in both Plan A and Plan B.",
       };
     }
+    if (acceptedA.has(id)) return { id, source: offer.source, entered: true, decision: "plan_a", reason: "Selected in Plan A only." };
+    if (acceptedB.has(id)) return { id, source: offer.source, entered: true, decision: "plan_b", reason: "Selected in Plan B only." };
 
     if (offer.quantityKg > scenario.capacityKg + 1e-9) {
       return {
@@ -474,14 +585,27 @@ function offerDecisions(
       };
     }
 
+    const candidateMixes = combinations.filter((combination) =>
+      combination.offers.some((item) => item.id === id),
+    );
+    const feasibleMixes = candidateMixes.filter((combination) => combination.feasible);
+    const fullOrderMixes = feasibleMixes.filter((combination) => meetsOrder(scenario, combination, "typical"));
+    const reason =
+      !feasibleMixes.length
+        ? `Declined: every mix containing this offer exceeds the ${kgText(scenario.capacityKg)} kg capacity.`
+        : !fullOrderMixes.length
+          ? "Declined: no capacity-feasible mix containing this offer covers the full order at typical yield. Partial fulfillment is not recommended."
+          : fullOrderMixes.every((combination) => combination.scenarios.typical.contribution <= 0)
+            ? "Declined: full-order mixes containing this offer are loss-making at typical yield; no purchase is the ₱0 baseline."
+            : planA
+              ? `Declined in the recommended plans: the best typical contribution of mixes containing this offer is below Plan A (${peso(planA.scenarios.typical.contribution)}).`
+              : "Declined: not selected by a plan that meets the full-order requirements.";
     return {
       id,
       source: offer.source,
       entered: true,
       decision: "declined",
-      reason: planA
-        ? `Declined: mixes that include this offer earn less at typical yield than Plan A (${peso(planA.scenarios.typical.contribution)}).`
-        : "Declined: no mix that includes this offer fits the capacity limit.",
+      reason,
     };
   });
 }
@@ -489,7 +613,7 @@ function offerDecisions(
 function enumerate(offers: ParsedOffer[]): ParsedOffer[][] {
   const combinations: ParsedOffer[][] = [];
   const count = 1 << offers.length;
-  for (let mask = 1; mask < count; mask += 1) {
+  for (let mask = 0; mask < count; mask += 1) {
     const chosen = offers.filter((_, index) => (mask & (1 << index)) !== 0);
     combinations.push(chosen);
   }
@@ -505,8 +629,19 @@ function bestBy(
     const next = score(combination);
     const current = score(best);
     if (next > current + 0.001) return combination;
-    if (Math.abs(next - current) <= 0.001 && combination.inputKg < best.inputKg) {
-      return combination;
+    if (Math.abs(next - current) <= 0.001) {
+      const nextLow = combination.scenarios.low.contribution;
+      const bestLow = best.scenarios.low.contribution;
+      if (nextLow > bestLow + 0.001) return combination;
+      if (bestLow > nextLow + 0.001) return best;
+      if (combination.inputKg < best.inputKg - 1e-9) return combination;
+      if (Math.abs(combination.inputKg - best.inputKg) <= 1e-9) {
+        const nextCost = combination.rawMaterialCost + combination.processingCost;
+        const bestCost = best.rawMaterialCost + best.processingCost;
+        if (nextCost < bestCost - 0.001) return combination;
+        if (Math.abs(nextCost - bestCost) <= 0.001 && combination.offers.length < best.offers.length) return combination;
+        if (combination.offers.length === best.offers.length && sameOffers(combination, best) === false && combination.offers.map((offer) => offer.id).join("") < best.offers.map((offer) => offer.id).join("")) return combination;
+      }
     }
     return best;
   }, null);

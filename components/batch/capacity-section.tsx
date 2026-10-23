@@ -7,7 +7,7 @@ import { numberError } from "@/lib/scenario";
 import { useScenario } from "@/components/batch/scenario-context";
 
 export function CapacitySection() {
-  const { scenario, pathway, setField, fieldError, compare, loadDemo, loading, requestError } =
+  const { scenario, pathway, setField, fieldError, compare, loadDemo, resetScenario, loading, requestError } =
     useScenario();
   const yieldDetail = `kg ${pathway.outputName} / kg ${pathway.inputShort}`;
 
@@ -37,6 +37,7 @@ export function CapacitySection() {
         <TextField
           id="target-contribution"
           label="Target contribution (₱)"
+          detail="Set by the processor as a minimum low-yield contribution goal. It is a scenario threshold, not an industry benchmark."
           inputMode="decimal"
           value={scenario.targetContribution}
           onChange={(value) => setField("targetContribution", value)}
@@ -81,12 +82,15 @@ export function CapacitySection() {
       <p className="text-xs leading-5 text-pretty text-muted">
         Scenario assumptions only, not verified local yields.
       </p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <Button variant="secondary" onClick={loadDemo} disabled={loading}>
           Use simulated demo
         </Button>
         <Button onClick={compare} disabled={loading}>
           {loading ? "Comparing…" : "Compare offers"}
+        </Button>
+        <Button variant="secondary" onClick={resetScenario} disabled={loading}>
+          Reset scenario
         </Button>
       </div>
       {requestError ? (

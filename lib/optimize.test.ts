@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { optimizeScenario } from "./optimize.ts";
-import type { ScenarioInput } from "./scenario.ts";
+import { optimizeScenario } from "./optimize";
+import type { ScenarioInput } from "./scenario";
 
 function scenario(patch: Partial<ScenarioInput> = {}): ScenarioInput {
   return {
@@ -15,8 +15,8 @@ function scenario(patch: Partial<ScenarioInput> = {}): ScenarioInput {
     ],
     capacity: "200",
     variableCost: "10",
-    targetContribution: "3000",
-    yieldLow: "0.2",
+    targetContribution: "10000",
+    yieldLow: "0.35",
     yieldTypical: "0.5",
     yieldHigh: "0.6",
     ...patch,
@@ -34,20 +34,20 @@ test("selects Plan A by typical contribution and Plan B by the low-yield target"
   assert.equal(result.planA?.outputKg.typical, 50);
   assert.equal(result.planA?.orderCoveragePct, 100);
   assert.equal(result.planA?.unmatchedOutputKg, 0);
-  assert.equal(result.planA?.walkAwayPricePerKg, 210);
-  assert.match(result.planA?.reason ?? "", /misses the ₱3,000.00 target/);
+  assert.equal(result.planA?.walkAwayPricePerKg, 65);
+  assert.match(result.planA?.reason ?? "", /misses the ₱10,000.00 target/);
 
   assert.deepEqual(result.planB?.offers, ["a", "b"]);
   assert.equal(result.planB?.contribution.typical, 14200);
-  assert.equal(result.planB?.contribution.low, 5200);
+  assert.equal(result.planB?.contribution.low, 14200);
   assert.equal(result.planB?.unmatchedOutputKg, 30);
-  assert.equal(result.planB?.walkAwayPricePerKg, 127.5);
-  assert.match(result.planBReason, /Meets the ₱3,000.00 target/);
+  assert.equal(result.planB?.walkAwayPricePerKg, 83.75);
+  assert.match(result.planBReason, /Meets the ₱10,000.00 target/);
 
-  assert.equal(result.offers[0]?.decision, "accepted");
+  assert.equal(result.offers[0]?.decision, "plan_a");
   assert.equal(result.offers[1]?.decision, "declined");
   assert.equal(result.offers[2]?.decision, "not_entered");
-  assert.equal(result.combinations.length, 3);
+  assert.equal(result.combinations.length, 8);
   assert.equal(
     result.combinations.find((combination) => combination.label === "A")?.ruledOutReason,
     null,
@@ -58,22 +58,23 @@ test("selects Plan A by typical contribution and Plan B by the low-yield target"
   );
 });
 
-test("does not invent Plan B when Plan A already meets the low-yield target", () => {
-  const result = optimizeScenario(scenario({ targetContribution: "500" }));
+test("shows the same combination for both plans when Plan A meets the low-yield conditions", () => {
+  const result = optimizeScenario(scenario({ targetContribution: "500", yieldLow: "0.5" }));
   assert.equal(result.ok, true);
   if (!result.ok) return;
 
-  assert.equal(result.planB, null);
-  assert.match(result.planBReason, /already meets/);
+  assert.deepEqual(result.planB?.offers, result.planA?.offers);
+  assert.equal(result.samePlan, true);
+  assert.match(result.planBReason, /same combination qualifies for both/);
 });
 
 test("reports when no mix meets the low-yield target", () => {
-  const result = optimizeScenario(scenario({ targetContribution: "10000" }));
+  const result = optimizeScenario(scenario({ targetContribution: "15000" }));
   assert.equal(result.ok, true);
   if (!result.ok) return;
 
   assert.equal(result.planB, null);
-  assert.match(result.planBReason, /best low-yield contribution is ₱5,200.00/);
+  assert.match(result.planBReason, /best low-yield contribution among full-order mixes is ₱14,200.00/);
 });
 
 test("rejects every mix that exceeds capacity", () => {
@@ -83,15 +84,15 @@ test("rejects every mix that exceeds capacity", () => {
 
   assert.equal(result.planA, null);
   assert.equal(result.planB, null);
-  assert.match(result.planBReason, /No mix fits/);
+  assert.match(result.planBReason, /No entered offer combination fits/);
   assert.equal(result.offers[0]?.decision, "declined");
-  assert.match(result.offers[0]?.reason ?? "", /capacity limit/);
+  assert.match(result.offers[0]?.reason ?? "", /capacity/);
 });
 
-test("enumerates all seven non-empty combinations", () => {
+test("enumerates all eight combinations including declining every offer", () => {
   const result = optimizeScenario(
     scenario({
-      orderQuantity: "100",
+      orderQuantity: "15",
       buyerPrice: "10",
       capacity: "100",
       variableCost: "0",
@@ -109,8 +110,9 @@ test("enumerates all seven non-empty combinations", () => {
   assert.equal(result.ok, true);
   if (!result.ok) return;
 
-  assert.equal(result.combinations.length, 7);
+  assert.equal(result.combinations.length, 8);
   assert.deepEqual(result.planA?.offers, ["a", "b", "c"]);
+  assert.ok(result.combinations.some((combination) => combination.label === "Decline all (no purchase)"));
   const overCapacity = result.combinations.find((combination) => !combination.feasible);
   assert.equal(overCapacity, undefined);
 });

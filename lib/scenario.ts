@@ -15,14 +15,6 @@ export const pathways = [
     outputName: "kernel",
     capacityStep: "Shelling",
   },
-  {
-    id: "kernel-to-packed",
-    label: "Kernel → packed kernel",
-    inputName: "kernel",
-    inputShort: "kernel",
-    outputName: "packed kernel",
-    capacityStep: "Packing",
-  },
 ] as const;
 
 export type PathwayId = (typeof pathways)[number]["id"];

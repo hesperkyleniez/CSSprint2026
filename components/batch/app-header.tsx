@@ -1,12 +1,16 @@
+import Image from "next/image";
+
 export function AppHeader() {
   return (
     <div className="flex items-center gap-3">
-      <div
-        className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand text-[13px] font-semibold tracking-wide text-white"
+      <Image
+        src="/pili-mark.png"
+        alt=""
         aria-hidden="true"
-      >
-        P8
-      </div>
+        width={48}
+        height={48}
+        className="size-12 shrink-0 object-contain"
+      />
       <div className="min-w-0">
         <p className="text-base font-semibold tracking-tight text-foreground">
           Pili BatchPilot
